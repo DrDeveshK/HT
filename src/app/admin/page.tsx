@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { loadSeasonContext } from "@/lib/seasonal-data";
 import { PageHeader, Card, CardHeader, Stat, StateBadge, LinkButton } from "@/components/ui";
 import { SeasonMixBar } from "@/components/NationalSeasonMap";
-import { formatINR, PLAN_PRICING, type SubscriptionPlan } from "@/lib/constants";
+import { getPlanMap } from "@/lib/plans";
+import { formatINR } from "@/lib/constants";
 
 export default async function AdminOverview() {
   await requireRole("PLATFORM_ADMIN");
@@ -28,7 +29,8 @@ export default async function AdminOverview() {
     }),
   ]);
   const revenue = revenueAgg._sum.amountPaise ?? 0;
-  const mrr = subs.reduce((s, x) => s + (PLAN_PRICING[x.plan as SubscriptionPlan]?.pricePaise ?? 0), 0);
+  const planMap = await getPlanMap();
+  const mrr = subs.reduce((s, x) => s + (planMap[x.plan]?.pricePaise ?? 0), 0);
 
   return (
     <>
