@@ -98,7 +98,7 @@ export default async function HotelDashboard() {
           action={<Badge tone="blue">{views.length} regions</Badge>}
         />
         <div className="p-5">
-          <NationalSeasonMap views={views} counts={counts} />
+          <NationalSeasonMap views={views} counts={counts} openZone={hotel.region.zone} />
         </div>
       </Card>
     </>
