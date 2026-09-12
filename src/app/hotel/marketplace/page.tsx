@@ -7,6 +7,14 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { PageHeader, Card, SeasonPill, ScorePill, Badge, Input, EmptyState } from "@/components/ui";
 import { formatINR, formatDate } from "@/lib/constants";
 
+function parseZones(json: string): string[] {
+  try {
+    return (JSON.parse(json)?.zones ?? []) as string[];
+  } catch {
+    return [];
+  }
+}
+
 export default async function Marketplace() {
   const user = await requireRole("HOTELIER_ADMIN");
   const hotel = user.hotel!;
@@ -22,6 +30,7 @@ export default async function Marketplace() {
     surplus.map(async (decl) => {
       const workers = await prisma.worker.findMany({
         where: { homeHotelId: decl.hotelId, primaryRoleId: decl.roleId, availabilityStatus: "AVAILABLE" },
+        include: { skills: { include: { skill: true } } },
       });
       const homeState = stateOf(decl.hotel.regionId);
       const matchWorkers: MatchWorker[] = workers.map((w) => ({
@@ -35,12 +44,14 @@ export default async function Marketplace() {
         experienceYears: w.experienceYears,
         availabilityStatus: w.availabilityStatus,
         kycStatus: w.kycStatus,
+        willingZones: parseZones(w.relocationPrefsJson),
       }));
       const ranked = rankMatches(matchWorkers, {
         roleId: decl.roleId,
         demandRegionId: hotel.regionId,
         wageOfferPaise: decl.wageOfferPaise,
         housingProvided: decl.housingProvided,
+        demandZone: hotel.region.zone,
       });
       const byId = Object.fromEntries(workers.map((w) => [w.id, w]));
       return { decl, homeState, ranked, byId };
@@ -104,6 +115,13 @@ export default async function Marketplace() {
                             {w.experienceYears}y exp · ★ {w.reputationScore.toFixed(1)} · expects{" "}
                             {formatINR(w.expectedWagePaise)}/day · {w.kycStatus === "VERIFIED" ? "KYC ✓" : "KYC pending"}
                           </p>
+                          {w.skills.length > 0 && (
+                            <p className="mt-1 flex flex-wrap gap-1">
+                              {w.skills.map((ws) => (
+                                <span key={ws.id} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{ws.skill.name}</span>
+                              ))}
+                            </p>
+                          )}
                           <p className="mt-1 text-xs text-slate-400">{m.reasons.join(" · ")}</p>
                         </div>
                         <ScorePill score={m.score} />

@@ -141,6 +141,8 @@ const PLANS = [
 const slug = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
 
 async function wipe() {
+  await prisma.workerSkill.deleteMany();
+  await prisma.hotelAmenity.deleteMany();
   await prisma.skill.deleteMany();
   await prisma.amenity.deleteMany();
   await prisma.plan.deleteMany();
@@ -210,14 +212,16 @@ async function main() {
   await prisma.skill.createMany({ data: SKILLS });
   await prisma.amenity.createMany({ data: AMENITIES.map((name) => ({ name })) });
   await prisma.plan.createMany({ data: PLANS });
+  const skillByName = Object.fromEntries((await prisma.skill.findMany()).map((s) => [s.name, s.id]));
+  const amenityByName = Object.fromEntries((await prisma.amenity.findMany()).map((a) => [a.name, a.id]));
 
   // Hotels — Panaji, Goa (off-season now) lends to Manali (peak now)
   const group = await prisma.hotelGroup.create({ data: { name: "Coast & Peaks Hospitality" } });
   const hotelA = await prisma.hotel.create({
-    data: { name: "Sunset Sands Resort", groupId: group.id, regionId: regionId["GA-PANAJI"], city: "Panaji, Goa", rooms: 42, tier: "MID" },
+    data: { name: "Sunset Sands Resort", groupId: group.id, regionId: regionId["GA-PANAJI"], city: "Panaji, Goa", rooms: 42, tier: "MID", staffHousingCapacity: 20, cuisinesJson: JSON.stringify(["Goan", "North Indian", "Continental"]), languagesJson: JSON.stringify(["English", "Hindi", "Konkani"]) },
   });
   const hotelB = await prisma.hotel.create({
-    data: { name: "Himalayan Vista Inn", groupId: group.id, regionId: regionId["HP-MANALI"], city: "Manali, Himachal Pradesh", rooms: 34, tier: "MID" },
+    data: { name: "Himalayan Vista Inn", groupId: group.id, regionId: regionId["HP-MANALI"], city: "Manali, Himachal Pradesh", rooms: 34, tier: "MID", staffHousingCapacity: 15, cuisinesJson: JSON.stringify(["North Indian", "Chinese"]), languagesJson: JSON.stringify(["English", "Hindi"]) },
   });
   const hotelC = await prisma.hotel.create({
     data: { name: "Desert Pearl Haveli", regionId: regionId["RJ-JAISALMER"], city: "Jaisalmer, Rajasthan", rooms: 22, tier: "BUDGET" },
@@ -234,25 +238,49 @@ async function main() {
     { name: "Anil Gaonkar", role: "F&B Steward", exp: 3, wage: 65000, rep: 4.0, kyc: "PENDING", skills: ["banquet", "room service"] },
     { name: "Kavita Shetty", role: "Housekeeping", exp: 5, wage: 68000, rep: 4.5, kyc: "VERIFIED", skills: ["housekeeping", "spa assist"] },
   ];
+  const roleDefaultSkills: Record<string, string[]> = {
+    Housekeeping: ["Deep Cleaning", "Laundry"],
+    Cook: ["North Indian Cuisine", "Tandoor"],
+    "Front Desk": ["Reservations", "Guest Relations"],
+    "F&B Steward": ["Banquet Service", "Room Service"],
+  };
   const workers = [];
   for (const w of workerSeed) {
-    workers.push(
-      await prisma.worker.create({
-        data: {
-          name: w.name,
-          homeHotelId: hotelA.id,
-          primaryRoleId: roleId[w.role],
-          skillsJson: JSON.stringify(w.skills),
-          experienceYears: w.exp,
-          expectedWagePaise: w.wage,
-          reputationScore: w.rep,
-          ratingCount: Math.round(w.rep * 4),
-          kycStatus: w.kyc,
-          availabilityStatus: "AVAILABLE",
-          consentGiven: true,
-        },
-      }),
-    );
+    const worker = await prisma.worker.create({
+      data: {
+        name: w.name,
+        homeHotelId: hotelA.id,
+        primaryRoleId: roleId[w.role],
+        skillsJson: JSON.stringify(w.skills),
+        experienceYears: w.exp,
+        expectedWagePaise: w.wage,
+        reputationScore: w.rep,
+        ratingCount: Math.round(w.rep * 4),
+        kycStatus: w.kyc,
+        availabilityStatus: "AVAILABLE",
+        consentGiven: true,
+        relocationPrefsJson: JSON.stringify({
+          zones: ["NORTH", "WEST", "SOUTH", "EAST", "CENTRAL", "NORTHEAST", "ISLANDS"],
+          maxDistanceKm: 3000,
+        }),
+      },
+    });
+    workers.push(worker);
+    for (const sn of roleDefaultSkills[w.role] ?? []) {
+      if (skillByName[sn]) await prisma.workerSkill.create({ data: { workerId: worker.id, skillId: skillByName[sn], proficiency: 4 } });
+    }
+  }
+
+  // Hotel amenities (demo)
+  const amenityFor: Record<string, string[]> = {
+    [hotelA.id]: ["Swimming Pool", "Multi-cuisine Restaurant", "Bar", "Staff Quarters", "Wi-Fi"],
+    [hotelB.id]: ["Multi-cuisine Restaurant", "Staff Quarters", "Wi-Fi", "Parking"],
+    [hotelC.id]: ["Bar", "Wi-Fi", "Staff Quarters"],
+  };
+  for (const [hid, names] of Object.entries(amenityFor)) {
+    for (const n of names) {
+      if (amenityByName[n]) await prisma.hotelAmenity.create({ data: { hotelId: hid, amenityId: amenityByName[n] } });
+    }
   }
 
   await prisma.user.create({ data: { email: "admin@ht.test", passwordHash: PW, name: "Platform Admin", role: "PLATFORM_ADMIN" } });
