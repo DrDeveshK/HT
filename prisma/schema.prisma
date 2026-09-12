@@ -72,6 +72,10 @@ model Hotel {
   lng       Float?
   rooms     Int         @default(0)
   tier      String      @default("MID") // BUDGET | MID | UPSCALE
+  cuisinesJson         String  @default("[]")
+  languagesJson        String  @default("[]")
+  staffHousingCapacity Int     @default(0)
+  brandStandards       String?
   createdAt DateTime    @default(now())
 
   users             User[]
@@ -81,6 +85,7 @@ model Hotel {
   homeDeputations   Deputation[]        @relation("HomeHotelDeputations")
   demandDeputations Deputation[]        @relation("DemandHotelDeputations")
   ratings           Rating[]            @relation("HotelRatings")
+  amenities         HotelAmenity[]
 }
 
 model Subscription {
@@ -122,11 +127,14 @@ model Worker {
   reputationScore    Float    @default(0)
   ratingCount        Int      @default(0)
   consentGiven       Boolean  @default(false)
+  relocationPrefsJson String  @default("{}") // { zones: string[], maxDistanceKm?: number }
+  emergencyContact   String?
   createdAt          DateTime @default(now())
 
   user        User?
   deputations Deputation[]
-  ratings     Rating[]     @relation("WorkerRatings")
+  ratings     Rating[]      @relation("WorkerRatings")
+  skills      WorkerSkill[]
 }
 
 // ---------------- Marketplace ----------------
@@ -248,17 +256,19 @@ model AuditLog {
 
 // ---------------- Admin-managed taxonomy & config (M1) ----------------
 model Skill {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  category  String // grouping, aligns with Role categories
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id           String        @id @default(cuid())
+  name         String        @unique
+  category     String // grouping, aligns with Role categories
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  workerSkills WorkerSkill[]
 }
 
 model Amenity {
-  id     String  @id @default(cuid())
-  name   String  @unique
-  active Boolean @default(true)
+  id     String         @id @default(cuid())
+  name   String         @unique
+  active Boolean        @default(true)
+  hotels HotelAmenity[]
 }
 
 model Plan {
@@ -276,4 +286,25 @@ model PlatformSetting {
   key       String   @id
   valueJson String   @default("{}")
   updatedAt DateTime @updatedAt
+}
+
+model WorkerSkill {
+  id          String @id @default(cuid())
+  workerId    String
+  worker      Worker @relation(fields: [workerId], references: [id])
+  skillId     String
+  skill       Skill  @relation(fields: [skillId], references: [id])
+  proficiency Int    @default(3) // 1-5
+
+  @@unique([workerId, skillId])
+}
+
+model HotelAmenity {
+  id        String  @id @default(cuid())
+  hotelId   String
+  hotel     Hotel   @relation(fields: [hotelId], references: [id])
+  amenityId String
+  amenity   Amenity @relation(fields: [amenityId], references: [id])
+
+  @@unique([hotelId, amenityId])
 }
