@@ -33,3 +33,12 @@ export async function setModule(formData: FormData) {
   revalidatePath("/admin/revenue");
   revalidatePath("/admin");
 }
+
+export async function setKyc(formData: FormData) {
+  await requireRole("PLATFORM_ADMIN");
+  const workerId = String(formData.get("workerId"));
+  const status = String(formData.get("status"));
+  if (!["VERIFIED", "REJECTED", "PENDING"].includes(status)) return;
+  await prisma.worker.update({ where: { id: workerId }, data: { kycStatus: status } });
+  revalidatePath("/admin/workers");
+}

@@ -38,7 +38,11 @@ async function main() {
     ["/hotel/subscription", goa, "Growth"],
     ["/admin", admin, "Platform overview"],
     ["/admin/revenue", admin, "Deputation commission"],
-    ["/admin/seasons", admin, "Seasonal calendar"],
+    ["/admin/seasons", admin, "Click a state to expand"],
+    ["/admin", admin, "MRR"],
+    ["/admin/workers", admin, "talent pool"],
+    ["/admin/deputations", admin, "in progress"],
+    ["/admin/revenue", admin, "Revenue to date"],
     ["/worker", worker, "Your deputations"],
   ];
 

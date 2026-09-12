@@ -3,8 +3,10 @@ import { AppShell, type NavItem } from "@/components/AppShell";
 
 const NAV: NavItem[] = [
   { href: "/admin", label: "Overview", exact: true },
-  { href: "/admin/revenue", label: "Revenue modules" },
+  { href: "/admin/deputations", label: "Deputations" },
+  { href: "/admin/workers", label: "Workers" },
   { href: "/admin/hotels", label: "Hotels" },
+  { href: "/admin/revenue", label: "Revenue" },
   { href: "/admin/seasons", label: "Seasons" },
 ];
 

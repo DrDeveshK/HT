@@ -2,7 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadSeasonContext } from "@/lib/seasonal-data";
 import { PageHeader, Card, CardHeader, Stat, StateBadge, LinkButton } from "@/components/ui";
-import { formatINR } from "@/lib/constants";
+import { formatINR, PLAN_PRICING, type SubscriptionPlan } from "@/lib/constants";
 
 export default async function AdminOverview() {
   await requireRole("PLATFORM_ADMIN");
@@ -11,7 +11,7 @@ export default async function AdminOverview() {
   const shoulder = views.filter((v) => v.state === "SHOULDER").length;
   const off = views.filter((v) => v.state === "OFF").length;
 
-  const [hotels, workers, activeDeps, revenueAgg, enabledModules, recent] = await Promise.all([
+  const [hotels, workers, activeDeps, revenueAgg, enabledModules, subs, recent] = await Promise.all([
     prisma.hotel.count(),
     prisma.worker.count(),
     prisma.deputation.count({
@@ -19,6 +19,7 @@ export default async function AdminOverview() {
     }),
     prisma.ledgerEntry.aggregate({ _sum: { amountPaise: true }, where: { direction: "REVENUE" } }),
     prisma.revenueModule.count({ where: { enabled: true } }),
+    prisma.subscription.findMany({ where: { status: "ACTIVE" }, select: { plan: true } }),
     prisma.deputation.findMany({
       include: { worker: true, homeHotel: true, demandHotel: true, role: true },
       orderBy: { updatedAt: "desc" },
@@ -26,17 +27,19 @@ export default async function AdminOverview() {
     }),
   ]);
   const revenue = revenueAgg._sum.amountPaise ?? 0;
+  const mrr = subs.reduce((s, x) => s + (PLAN_PRICING[x.plan as SubscriptionPlan]?.pricePaise ?? 0), 0);
 
   return (
     <>
       <PageHeader title="Platform overview" subtitle="Network health and monetization at a glance." />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Hotels" value={hotels} />
         <Stat label="Workers" value={workers} />
         <Stat label="Active deputations" value={activeDeps} />
+        <Stat label="MRR (subscriptions)" value={formatINR(mrr)} />
         <Stat label="Platform revenue" value={formatINR(revenue)} sub="all-time (sandbox)" />
-        <Stat label="Revenue modules on" value={enabledModules} />
+        <Stat label="Modules on" value={enabledModules} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -60,7 +63,7 @@ export default async function AdminOverview() {
         <Card>
           <CardHeader
             title="Season snapshot"
-            subtitle={`${views.length} regions across India`}
+            subtitle={`${views.length} hotspots across India`}
             action={<LinkButton href="/admin/seasons" variant="secondary" size="sm">Full calendar</LinkButton>}
           />
           <div className="grid grid-cols-3 gap-3 p-5">
