@@ -12,7 +12,7 @@ import type { SeasonState } from "@/lib/constants";
 /** Loads regions + seasonal packs and derives the national heatmap and corridors. */
 export async function loadSeasonContext(month: number = currentMonth()) {
   const [regions, packsRaw] = await Promise.all([
-    prisma.region.findMany({ orderBy: { name: "asc" } }),
+    prisma.region.findMany({ orderBy: [{ zone: "asc" }, { name: "asc" }] }),
     prisma.seasonalPack.findMany(),
   ]);
 

@@ -8,81 +8,70 @@ const DAY = 86400000;
 const d = (days: number) => new Date(Date.now() + days * DAY);
 
 type S = "PEAK" | "SHOULDER" | "OFF";
+const P: S = "PEAK";
+const SH: S = "SHOULDER";
+const O: S = "OFF";
 
-interface RegionSeed {
-  code: string;
-  name: string;
-  zone: string;
-  dominantType: string;
-  months: S[]; // Jan..Dec
-}
+// Seasonal archetypes (Jan..Dec) shared by climatically-similar states.
+const ARCHETYPES: Record<string, { dominantType: string; months: S[] }> = {
+  HIMALAYAN: { dominantType: "MOUNTAIN", months: [O, O, SH, P, P, P, SH, SH, P, P, SH, O] },
+  NORTHEAST: { dominantType: "MOUNTAIN", months: [SH, SH, P, P, P, SH, O, O, SH, P, P, SH] },
+  DESERT: { dominantType: "DESERT", months: [P, P, SH, O, O, O, O, SH, SH, P, P, P] },
+  WEST_COAST: { dominantType: "BEACH", months: [P, P, SH, SH, O, O, O, O, O, SH, P, P] },
+  SOUTH: { dominantType: "COASTAL", months: [P, P, SH, SH, O, O, O, SH, SH, SH, P, P] },
+  GANGETIC: { dominantType: "PILGRIMAGE", months: [P, P, SH, SH, O, O, SH, SH, SH, P, P, P] },
+  EAST_COAST: { dominantType: "COASTAL", months: [P, P, SH, SH, O, O, SH, SH, SH, P, P, P] },
+  CENTRAL: { dominantType: "WILDLIFE", months: [P, P, P, P, SH, SH, O, O, O, SH, P, P] },
+  DECCAN: { dominantType: "HERITAGE", months: [P, P, SH, SH, O, O, SH, SH, SH, P, P, P] },
+  METRO: { dominantType: "BUSINESS", months: [SH, P, P, SH, O, O, SH, SH, P, P, P, SH] },
+  ISLAND: { dominantType: "ISLAND", months: [P, P, P, SH, O, O, O, O, SH, SH, P, P] },
+};
 
-// Pan-India seasonal calendar. Calibrated so September (current month) has live
-// OFF regions (surplus) and PEAK regions (demand) to make the demo work today.
-const REGIONS: RegionSeed[] = [
-  {
-    code: "NORTH_HILLS",
-    name: "North Himalayan Hills (HP · Uttarakhand · J&K)",
-    zone: "NORTH",
-    dominantType: "MOUNTAIN",
-    months: ["OFF", "OFF", "SHOULDER", "PEAK", "PEAK", "PEAK", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "SHOULDER", "OFF"],
-  },
-  {
-    code: "RAJASTHAN",
-    name: "Rajasthan Desert (Jaisalmer · Jodhpur · Udaipur)",
-    zone: "WEST",
-    dominantType: "DESERT",
-    months: ["PEAK", "PEAK", "SHOULDER", "OFF", "OFF", "OFF", "OFF", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK"],
-  },
-  {
-    code: "GOA",
-    name: "Goa & Konkan Coast",
-    zone: "WEST",
-    dominantType: "BEACH",
-    months: ["PEAK", "PEAK", "SHOULDER", "SHOULDER", "OFF", "OFF", "OFF", "OFF", "OFF", "SHOULDER", "PEAK", "PEAK"],
-  },
-  {
-    code: "KERALA",
-    name: "Kerala Backwaters & Coast",
-    zone: "SOUTH",
-    dominantType: "BACKWATER",
-    months: ["PEAK", "PEAK", "SHOULDER", "SHOULDER", "OFF", "OFF", "OFF", "SHOULDER", "SHOULDER", "SHOULDER", "PEAK", "PEAK"],
-  },
-  {
-    code: "TN_HILLS_TEMPLE",
-    name: "Tamil Nadu Hills & Temples (Ooty · Madurai)",
-    zone: "SOUTH",
-    dominantType: "HILL_TEMPLE",
-    months: ["SHOULDER", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK", "SHOULDER", "SHOULDER", "SHOULDER", "SHOULDER", "SHOULDER", "PEAK"],
-  },
-  {
-    code: "BENGAL_SIKKIM_NE",
-    name: "Bengal · Sikkim · North-East (Darjeeling · Gangtok)",
-    zone: "NORTHEAST",
-    dominantType: "MOUNTAIN",
-    months: ["SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK", "SHOULDER", "OFF", "OFF", "SHOULDER", "PEAK", "PEAK", "SHOULDER"],
-  },
-  {
-    code: "ODISHA_PILGRIMAGE",
-    name: "Eastern Pilgrimage Circuit (Puri · Varanasi · Gaya)",
-    zone: "EAST",
-    dominantType: "PILGRIMAGE",
-    months: ["PEAK", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "SHOULDER", "PEAK", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK"],
-  },
-  {
-    code: "CENTRAL_WILDLIFE",
-    name: "Central Heritage & Wildlife (Khajuraho · Kanha)",
-    zone: "CENTRAL",
-    dominantType: "WILDLIFE",
-    months: ["PEAK", "PEAK", "PEAK", "PEAK", "SHOULDER", "SHOULDER", "OFF", "OFF", "OFF", "SHOULDER", "PEAK", "PEAK"],
-  },
-  {
-    code: "METRO",
-    name: "Metro Business Hubs (Delhi · Mumbai · Bengaluru)",
-    zone: "CENTRAL",
-    dominantType: "BUSINESS",
-    months: ["SHOULDER", "PEAK", "PEAK", "SHOULDER", "OFF", "OFF", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK", "SHOULDER"],
-  },
+// All 28 states + 8 union territories — full India coverage.
+const STATES: { code: string; name: string; zone: string; arch: keyof typeof ARCHETYPES }[] = [
+  // North
+  { code: "JK", name: "Jammu & Kashmir", zone: "NORTH", arch: "HIMALAYAN" },
+  { code: "LA", name: "Ladakh", zone: "NORTH", arch: "HIMALAYAN" },
+  { code: "HP", name: "Himachal Pradesh", zone: "NORTH", arch: "HIMALAYAN" },
+  { code: "UK", name: "Uttarakhand", zone: "NORTH", arch: "HIMALAYAN" },
+  { code: "PB", name: "Punjab", zone: "NORTH", arch: "GANGETIC" },
+  { code: "HR", name: "Haryana", zone: "NORTH", arch: "GANGETIC" },
+  { code: "CH", name: "Chandigarh", zone: "NORTH", arch: "METRO" },
+  { code: "DL", name: "Delhi", zone: "NORTH", arch: "METRO" },
+  { code: "UP", name: "Uttar Pradesh", zone: "NORTH", arch: "GANGETIC" },
+  // West
+  { code: "RJ", name: "Rajasthan", zone: "WEST", arch: "DESERT" },
+  { code: "GJ", name: "Gujarat", zone: "WEST", arch: "DESERT" },
+  { code: "GA", name: "Goa", zone: "WEST", arch: "WEST_COAST" },
+  { code: "MH", name: "Maharashtra", zone: "WEST", arch: "DECCAN" },
+  { code: "DD", name: "Dadra & Nagar Haveli and Daman & Diu", zone: "WEST", arch: "WEST_COAST" },
+  // South
+  { code: "KA", name: "Karnataka", zone: "SOUTH", arch: "SOUTH" },
+  { code: "KL", name: "Kerala", zone: "SOUTH", arch: "SOUTH" },
+  { code: "TN", name: "Tamil Nadu", zone: "SOUTH", arch: "SOUTH" },
+  { code: "AP", name: "Andhra Pradesh", zone: "SOUTH", arch: "SOUTH" },
+  { code: "TG", name: "Telangana", zone: "SOUTH", arch: "DECCAN" },
+  { code: "PY", name: "Puducherry", zone: "SOUTH", arch: "SOUTH" },
+  // East
+  { code: "BR", name: "Bihar", zone: "EAST", arch: "GANGETIC" },
+  { code: "JH", name: "Jharkhand", zone: "EAST", arch: "GANGETIC" },
+  { code: "OD", name: "Odisha", zone: "EAST", arch: "EAST_COAST" },
+  { code: "WB", name: "West Bengal", zone: "EAST", arch: "EAST_COAST" },
+  // Central
+  { code: "MP", name: "Madhya Pradesh", zone: "CENTRAL", arch: "CENTRAL" },
+  { code: "CG", name: "Chhattisgarh", zone: "CENTRAL", arch: "CENTRAL" },
+  // North-East
+  { code: "SK", name: "Sikkim", zone: "NORTHEAST", arch: "HIMALAYAN" },
+  { code: "AS", name: "Assam", zone: "NORTHEAST", arch: "NORTHEAST" },
+  { code: "AR", name: "Arunachal Pradesh", zone: "NORTHEAST", arch: "HIMALAYAN" },
+  { code: "NL", name: "Nagaland", zone: "NORTHEAST", arch: "NORTHEAST" },
+  { code: "MN", name: "Manipur", zone: "NORTHEAST", arch: "NORTHEAST" },
+  { code: "MZ", name: "Mizoram", zone: "NORTHEAST", arch: "NORTHEAST" },
+  { code: "ML", name: "Meghalaya", zone: "NORTHEAST", arch: "NORTHEAST" },
+  { code: "TR", name: "Tripura", zone: "NORTHEAST", arch: "NORTHEAST" },
+  // Islands
+  { code: "AN", name: "Andaman & Nicobar Islands", zone: "ISLANDS", arch: "ISLAND" },
+  { code: "LD", name: "Lakshadweep", zone: "ISLANDS", arch: "ISLAND" },
 ];
 
 const ROLES = [
@@ -119,15 +108,16 @@ async function wipe() {
 async function main() {
   await wipe();
 
-  // Regions + seasonal packs
+  // Regions (all states + UTs) + seasonal packs from archetypes
   const regionId: Record<string, string> = {};
-  for (const r of REGIONS) {
+  for (const st of STATES) {
+    const arch = ARCHETYPES[st.arch];
     const region = await prisma.region.create({
-      data: { code: r.code, name: r.name, zone: r.zone, dominantType: r.dominantType },
+      data: { code: st.code, name: st.name, zone: st.zone, dominantType: arch.dominantType },
     });
-    regionId[r.code] = region.id;
+    regionId[st.code] = region.id;
     await prisma.seasonalPack.createMany({
-      data: r.months.map((state, i) => ({ regionId: region.id, month: i + 1, state })),
+      data: arch.months.map((state, i) => ({ regionId: region.id, month: i + 1, state })),
     });
   }
 
@@ -152,51 +142,24 @@ async function main() {
     });
   }
 
-  // Hotels
+  // Hotels — Goa (off-season now) lends to Himachal (peak now)
   const group = await prisma.hotelGroup.create({ data: { name: "Coast & Peaks Hospitality" } });
 
   const hotelA = await prisma.hotel.create({
-    data: {
-      name: "Sunset Sands Resort",
-      groupId: group.id,
-      regionId: regionId["GOA"],
-      city: "Panaji, Goa",
-      rooms: 42,
-      tier: "MID",
-    },
+    data: { name: "Sunset Sands Resort", groupId: group.id, regionId: regionId["GA"], city: "Panaji, Goa", rooms: 42, tier: "MID" },
   });
   const hotelB = await prisma.hotel.create({
-    data: {
-      name: "Himalayan Vista Inn",
-      groupId: group.id,
-      regionId: regionId["NORTH_HILLS"],
-      city: "Manali, Himachal Pradesh",
-      rooms: 34,
-      tier: "MID",
-    },
+    data: { name: "Himalayan Vista Inn", groupId: group.id, regionId: regionId["HP"], city: "Manali, Himachal Pradesh", rooms: 34, tier: "MID" },
   });
   const hotelC = await prisma.hotel.create({
-    data: {
-      name: "Desert Pearl Haveli",
-      regionId: regionId["RAJASTHAN"],
-      city: "Jaisalmer, Rajasthan",
-      rooms: 22,
-      tier: "BUDGET",
-    },
+    data: { name: "Desert Pearl Haveli", regionId: regionId["RJ"], city: "Jaisalmer, Rajasthan", rooms: 22, tier: "BUDGET" },
   });
 
-  // Subscriptions
-  await prisma.subscription.create({
-    data: { hotelId: hotelA.id, plan: "GROWTH", status: "ACTIVE", currentPeriodEnd: d(30) },
-  });
-  await prisma.subscription.create({
-    data: { hotelId: hotelB.id, plan: "STARTER", status: "ACTIVE", currentPeriodEnd: d(30) },
-  });
-  await prisma.subscription.create({
-    data: { hotelId: hotelC.id, plan: "FREE", status: "ACTIVE" },
-  });
+  await prisma.subscription.create({ data: { hotelId: hotelA.id, plan: "GROWTH", status: "ACTIVE", currentPeriodEnd: d(30) } });
+  await prisma.subscription.create({ data: { hotelId: hotelB.id, plan: "STARTER", status: "ACTIVE", currentPeriodEnd: d(30) } });
+  await prisma.subscription.create({ data: { hotelId: hotelC.id, plan: "FREE", status: "ACTIVE" } });
 
-  // Workers — all home at Hotel A (Goa), which is OFF-season now => prime to lend
+  // Workers — home at Hotel A (Goa), off-season now => prime to lend
   const workerSeed = [
     { name: "Ramesh Kumar", role: "Housekeeping", exp: 6, wage: 70000, rep: 4.6, kyc: "VERIFIED", skills: ["deep cleaning", "laundry"] },
     { name: "Suresh Naik", role: "Cook", exp: 8, wage: 120000, rep: 4.8, kyc: "VERIFIED", skills: ["north indian", "tandoor", "continental"] },
@@ -206,81 +169,52 @@ async function main() {
   ];
   const workers = [];
   for (const w of workerSeed) {
-    const worker = await prisma.worker.create({
-      data: {
-        name: w.name,
-        homeHotelId: hotelA.id,
-        primaryRoleId: roleId[w.role],
-        skillsJson: JSON.stringify(w.skills),
-        experienceYears: w.exp,
-        expectedWagePaise: w.wage,
-        reputationScore: w.rep,
-        ratingCount: Math.round(w.rep * 4),
-        kycStatus: w.kyc,
-        availabilityStatus: "AVAILABLE",
-        consentGiven: true,
-      },
-    });
-    workers.push(worker);
+    workers.push(
+      await prisma.worker.create({
+        data: {
+          name: w.name,
+          homeHotelId: hotelA.id,
+          primaryRoleId: roleId[w.role],
+          skillsJson: JSON.stringify(w.skills),
+          experienceYears: w.exp,
+          expectedWagePaise: w.wage,
+          reputationScore: w.rep,
+          ratingCount: Math.round(w.rep * 4),
+          kycStatus: w.kyc,
+          availabilityStatus: "AVAILABLE",
+          consentGiven: true,
+        },
+      }),
+    );
   }
 
   // Users
-  await prisma.user.create({
-    data: { email: "admin@ht.test", passwordHash: PW, name: "Platform Admin", role: "PLATFORM_ADMIN" },
-  });
-  await prisma.user.create({
-    data: { email: "goa@ht.test", passwordHash: PW, name: "Goa GM (Sunset Sands)", role: "HOTELIER_ADMIN", hotelId: hotelA.id },
-  });
-  await prisma.user.create({
-    data: { email: "hills@ht.test", passwordHash: PW, name: "Manali GM (Himalayan Vista)", role: "HOTELIER_ADMIN", hotelId: hotelB.id },
-  });
-  await prisma.user.create({
-    data: { email: "raj@ht.test", passwordHash: PW, name: "Jaisalmer GM (Desert Pearl)", role: "HOTELIER_ADMIN", hotelId: hotelC.id },
-  });
-  await prisma.user.create({
-    data: { email: "worker@ht.test", passwordHash: PW, name: workers[0].name, role: "WORKER", workerId: workers[0].id },
-  });
+  await prisma.user.create({ data: { email: "admin@ht.test", passwordHash: PW, name: "Platform Admin", role: "PLATFORM_ADMIN" } });
+  await prisma.user.create({ data: { email: "goa@ht.test", passwordHash: PW, name: "Goa GM (Sunset Sands)", role: "HOTELIER_ADMIN", hotelId: hotelA.id } });
+  await prisma.user.create({ data: { email: "hills@ht.test", passwordHash: PW, name: "Manali GM (Himalayan Vista)", role: "HOTELIER_ADMIN", hotelId: hotelB.id } });
+  await prisma.user.create({ data: { email: "raj@ht.test", passwordHash: PW, name: "Jaisalmer GM (Desert Pearl)", role: "HOTELIER_ADMIN", hotelId: hotelC.id } });
+  await prisma.user.create({ data: { email: "worker@ht.test", passwordHash: PW, name: workers[0].name, role: "WORKER", workerId: workers[0].id } });
 
-  // Declarations — A is SURPLUS (Goa off-season), B is DEMAND (Himalayas peak)
+  // Declarations — A surplus (Goa off), B demand (Himachal peak)
   await prisma.seasonDeclaration.create({
-    data: {
-      hotelId: hotelA.id, type: "SURPLUS", roleId: roleId["Housekeeping"], headcount: 3,
-      startDate: d(7), endDate: d(97), wageOfferPaise: 70000, housingProvided: true,
-      note: "Off-season surplus — trained coastal housekeeping available to lend.",
-    },
+    data: { hotelId: hotelA.id, type: "SURPLUS", roleId: roleId["Housekeeping"], headcount: 3, startDate: d(7), endDate: d(97), wageOfferPaise: 70000, housingProvided: true, note: "Off-season surplus — trained coastal housekeeping available to lend." },
   });
   await prisma.seasonDeclaration.create({
-    data: {
-      hotelId: hotelA.id, type: "SURPLUS", roleId: roleId["Cook"], headcount: 1,
-      startDate: d(7), endDate: d(97), wageOfferPaise: 120000, housingProvided: true,
-      note: "Experienced multi-cuisine cook available during monsoon lull.",
-    },
+    data: { hotelId: hotelA.id, type: "SURPLUS", roleId: roleId["Cook"], headcount: 1, startDate: d(7), endDate: d(97), wageOfferPaise: 120000, housingProvided: true, note: "Experienced multi-cuisine cook available during monsoon lull." },
   });
   await prisma.seasonDeclaration.create({
-    data: {
-      hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Housekeeping"], headcount: 2,
-      startDate: d(14), endDate: d(104), wageOfferPaise: 90000, housingProvided: true,
-      note: "Autumn peak — need experienced housekeeping, staff quarters provided.",
-    },
+    data: { hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Housekeeping"], headcount: 2, startDate: d(14), endDate: d(104), wageOfferPaise: 90000, housingProvided: true, note: "Autumn peak — need experienced housekeeping, staff quarters provided." },
   });
   await prisma.seasonDeclaration.create({
-    data: {
-      hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Cook"], headcount: 1,
-      startDate: d(14), endDate: d(104), wageOfferPaise: 130000, housingProvided: true,
-      note: "Peak-season kitchen support needed.",
-    },
+    data: { hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Cook"], headcount: 1, startDate: d(14), endDate: d(104), wageOfferPaise: 130000, housingProvided: true, note: "Peak-season kitchen support needed." },
   });
 
   console.log("Seed complete:");
-  console.log(`  ${REGIONS.length} regions × 12 seasonal packs`);
+  console.log(`  ${STATES.length} regions (all states + UTs) × 12 seasonal packs`);
   console.log(`  ${ROLES.length} roles, ${REVENUE_MODULE_CATALOG.length} revenue modules`);
   console.log(`  3 hotels, ${workers.length} workers, 4 declarations`);
   console.log("\nDemo logins (password: password123):");
-  console.log("  admin@ht.test   — platform admin");
-  console.log("  goa@ht.test     — Sunset Sands Resort, Goa (SURPLUS, off-season)");
-  console.log("  hills@ht.test   — Himalayan Vista Inn, Manali (DEMAND, peak)");
-  console.log("  raj@ht.test     — Desert Pearl Haveli, Jaisalmer");
-  console.log("  worker@ht.test  — worker (Ramesh Kumar)");
+  console.log("  admin@ht.test | goa@ht.test | hills@ht.test | raj@ht.test | worker@ht.test");
 }
 
 main()

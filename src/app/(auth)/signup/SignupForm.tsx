@@ -8,8 +8,19 @@ import { Card, Field, Input, Select } from "@/components/ui";
 
 const initial: AuthState = { error: null };
 
-export function SignupForm({ regions }: { regions: { id: string; name: string }[] }) {
+const ZONE_LABEL: Record<string, string> = {
+  NORTH: "North",
+  WEST: "West",
+  CENTRAL: "Central",
+  EAST: "East",
+  NORTHEAST: "North-East",
+  SOUTH: "South",
+  ISLANDS: "Islands",
+};
+
+export function SignupForm({ regions }: { regions: { id: string; name: string; zone: string }[] }) {
   const [state, action] = useActionState(signupAction, initial);
+  const zones = [...new Set(regions.map((r) => r.zone))];
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-10">
@@ -20,7 +31,9 @@ export function SignupForm({ regions }: { regions: { id: string; name: string }[
 
       <Card className="p-6">
         <h1 className="text-xl font-bold text-slate-900">Onboard your hotel</h1>
-        <p className="mt-1 text-sm text-slate-500">Start free. Declare surplus or demand and match across the season.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Anywhere in India — every state &amp; UT is supported. Start free.
+        </p>
 
         <form action={action} className="mt-5 space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -33,15 +46,21 @@ export function SignupForm({ regions }: { regions: { id: string; name: string }[
             <Field label="Hotel name"><Input name="hotelName" required /></Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Region">
+            <Field label="State / UT">
               <Select name="regionId" required defaultValue="">
-                <option value="" disabled>Select a region…</option>
-                {regions.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+                <option value="" disabled>Select your state / UT…</option>
+                {zones.map((z) => (
+                  <optgroup key={z} label={ZONE_LABEL[z] ?? z}>
+                    {regions
+                      .filter((r) => r.zone === z)
+                      .map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                  </optgroup>
                 ))}
               </Select>
             </Field>
-            <Field label="City"><Input name="city" required placeholder="e.g. Udaipur" /></Field>
+            <Field label="City / town"><Input name="city" required placeholder="e.g. Tawang" /></Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Rooms"><Input name="rooms" type="number" min={1} required defaultValue={20} /></Field>

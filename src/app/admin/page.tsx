@@ -1,14 +1,15 @@
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { loadSeasonContext, openDeclarationCountsByRegion } from "@/lib/seasonal-data";
-import { NationalSeasonMap } from "@/components/NationalSeasonMap";
-import { PageHeader, Card, CardHeader, Stat, StateBadge } from "@/components/ui";
+import { loadSeasonContext } from "@/lib/seasonal-data";
+import { PageHeader, Card, CardHeader, Stat, StateBadge, LinkButton } from "@/components/ui";
 import { formatINR } from "@/lib/constants";
 
 export default async function AdminOverview() {
   await requireRole("PLATFORM_ADMIN");
   const { views } = await loadSeasonContext();
-  const counts = await openDeclarationCountsByRegion();
+  const peak = views.filter((v) => v.state === "PEAK").length;
+  const shoulder = views.filter((v) => v.state === "SHOULDER").length;
+  const off = views.filter((v) => v.state === "OFF").length;
 
   const [hotels, workers, activeDeps, revenueAgg, enabledModules, recent] = await Promise.all([
     prisma.hotel.count(),
@@ -57,9 +58,15 @@ export default async function AdminOverview() {
           </div>
         </Card>
         <Card>
-          <CardHeader title="Season snapshot" />
-          <div className="p-5">
-            <NationalSeasonMap views={views} counts={counts} />
+          <CardHeader
+            title="Season snapshot"
+            subtitle={`${views.length} regions across India`}
+            action={<LinkButton href="/admin/seasons" variant="secondary" size="sm">Full calendar</LinkButton>}
+          />
+          <div className="grid grid-cols-3 gap-3 p-5">
+            <Stat label="Peak now" value={peak} />
+            <Stat label="Shoulder" value={shoulder} />
+            <Stat label="Off-season" value={off} />
           </div>
         </Card>
       </div>

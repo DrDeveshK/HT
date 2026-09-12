@@ -30,6 +30,7 @@ async function main() {
 
   const checks: [string, string, string][] = [
     ["/hotel", hills, "Welcome, Himalayan Vista Inn"],
+    ["/hotel", hills, "Lakshadweep"], // national map now covers all of India
     ["/hotel/marketplace", hills, "Sunset Sands Resort"], // borrower sees Goa surplus
     ["/hotel/declarations", goa, "Your declarations"],
     ["/hotel/subscription", goa, "Growth"],
