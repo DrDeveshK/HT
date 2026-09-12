@@ -2,9 +2,11 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadSeasonContext } from "@/lib/seasonal-data";
 import { rankMatches, type MatchWorker } from "@/core/matching";
+import Link from "next/link";
 import { requestDeputation } from "@/actions/deputations";
+import { toggleFavourite } from "@/actions/hotel";
 import { SubmitButton } from "@/components/SubmitButton";
-import { PageHeader, Card, SeasonPill, ScorePill, Badge, Input, EmptyState } from "@/components/ui";
+import { PageHeader, Card, SeasonPill, ScorePill, Badge, Input, EmptyState, RehirePill } from "@/components/ui";
 import { formatINR, formatDate } from "@/lib/constants";
 
 function parseZones(json: string): string[] {
@@ -15,10 +17,25 @@ function parseZones(json: string): string[] {
   }
 }
 
+function parseDims(json: string): Record<string, number> {
+  try {
+    return (JSON.parse(json) ?? {}) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
 export default async function Marketplace() {
   const user = await requireRole("HOTELIER_ADMIN");
   const hotel = user.hotel!;
   const { stateOf } = await loadSeasonContext();
+
+  const favourites = await prisma.favourite.findMany({
+    where: { hotelId: hotel.id },
+    include: { worker: { include: { primaryRole: true, homeHotel: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const favSet = new Set(favourites.map((f) => f.workerId));
 
   const surplus = await prisma.seasonDeclaration.findMany({
     where: { type: "SURPLUS", status: "OPEN", hotelId: { not: hotel.id } },
@@ -45,6 +62,9 @@ export default async function Marketplace() {
         availabilityStatus: w.availabilityStatus,
         kycStatus: w.kycStatus,
         willingZones: parseZones(w.relocationPrefsJson),
+        rehireRate: w.rehireRate,
+        reliability: parseDims(w.dimensionAggJson).reliability,
+        previouslyRehiredByDemand: favSet.has(w.id),
       }));
       const ranked = rankMatches(matchWorkers, {
         roleId: decl.roleId,
@@ -71,6 +91,38 @@ export default async function Marketplace() {
         subtitle="Source trained staff from off-season regions — or see who needs your surplus."
         action={<SeasonPill state={stateOf(hotel.regionId)} />}
       />
+
+      {favourites.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-slate-900">Your rehire shortlist</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {favourites.map((f) => (
+              <Card key={f.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div>
+                  <p className="font-medium text-slate-800">
+                    <Link href={`/workers/${f.workerId}`} className="hover:text-brand-600 hover:underline">{f.worker.name}</Link>
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {f.worker.primaryRole.name} · {f.worker.homeHotel.name} ·{" "}
+                    {f.worker.availabilityStatus === "AVAILABLE" ? "available" : f.worker.availabilityStatus.toLowerCase().replace("_", " ")}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {f.worker.rehireRate > 0 && <RehirePill rate={f.worker.rehireRate} />}
+                  {f.worker.availabilityStatus === "AVAILABLE" ? (
+                    <form action={requestDeputation}>
+                      <input type="hidden" name="workerId" value={f.workerId} />
+                      <SubmitButton size="sm" pendingText="Requesting…">Request again</SubmitButton>
+                    </form>
+                  ) : (
+                    <Badge tone="slate">On deputation</Badge>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       <h2 className="mb-3 text-lg font-semibold text-slate-900">Staff available to borrow</h2>
       {cards.length === 0 ? (
@@ -106,11 +158,11 @@ export default async function Marketplace() {
                     const w = byId[m.worker.id];
                     const defaultWage = Math.max(decl.wageOfferPaise, w.expectedWagePaise) / 100;
                     return (
-                      <form key={m.worker.id} action={requestDeputation} className="flex flex-wrap items-center gap-3 py-3">
-                        <input type="hidden" name="workerId" value={m.worker.id} />
-                        <input type="hidden" name="declarationId" value={decl.id} />
+                      <div key={m.worker.id} className="flex flex-wrap items-center gap-3 py-3">
                         <div className="min-w-[11rem] flex-1">
-                          <p className="font-medium text-slate-800">{w.name}</p>
+                          <p className="font-medium text-slate-800">
+                            <Link href={`/workers/${w.id}`} className="hover:text-brand-600 hover:underline">{w.name}</Link>
+                          </p>
                           <p className="text-xs text-slate-500">
                             {w.experienceYears}y exp · ★ {w.reputationScore.toFixed(1)} · expects{" "}
                             {formatINR(w.expectedWagePaise)}/day · {w.kycStatus === "VERIFIED" ? "KYC ✓" : "KYC pending"}
@@ -124,13 +176,24 @@ export default async function Marketplace() {
                           )}
                           <p className="mt-1 text-xs text-slate-400">{m.reasons.join(" · ")}</p>
                         </div>
-                        <ScorePill score={m.score} />
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-end gap-1">
+                          <ScorePill score={m.score} />
+                          {w.rehireRate > 0 && <RehirePill rate={w.rehireRate} />}
+                        </div>
+                        <form action={toggleFavourite} title={favSet.has(w.id) ? "Remove from shortlist" : "Add to rehire shortlist"}>
+                          <input type="hidden" name="workerId" value={w.id} />
+                          <SubmitButton size="sm" variant="ghost" pendingText="…">
+                            {favSet.has(w.id) ? "♥" : "♡"}
+                          </SubmitButton>
+                        </form>
+                        <form action={requestDeputation} className="flex items-center gap-2">
+                          <input type="hidden" name="workerId" value={w.id} />
+                          <input type="hidden" name="declarationId" value={decl.id} />
                           <span className="text-xs text-slate-400">₹/day</span>
                           <Input name="wageRupees" type="number" min={0} defaultValue={defaultWage} className="w-24" />
                           <SubmitButton size="sm" pendingText="Requesting…">Request</SubmitButton>
-                        </div>
-                      </form>
+                        </form>
+                      </div>
                     );
                   })}
                 </div>

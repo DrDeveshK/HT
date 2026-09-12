@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { transitionDeputation, submitRating } from "@/actions/deputations";
 import { computeDeputationCharges, daysBetween } from "@/lib/fees";
 import { actionsFor, type Actor } from "@/core/deputation/stateMachine";
 import { SubmitButton } from "@/components/SubmitButton";
-import { PageHeader, Card, CardHeader, StateBadge, Stat, Table, Th, Td, Field, Select } from "@/components/ui";
-import { formatINR, formatDate, type DeputationState } from "@/lib/constants";
+import { PageHeader, Card, CardHeader, StateBadge, Stat, Table, Th, Td, Select, Stars } from "@/components/ui";
+import { formatINR, formatDate, WORKER_RATING_DIMENSIONS, HOTEL_RATING_DIMENSIONS, type RatingDimension, type DeputationState } from "@/lib/constants";
 
 export default async function DeputationDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -74,6 +75,11 @@ export default async function DeputationDetail({ params }: { params: Promise<{ i
               <Detail label="Housing" value={dep.housingProvided ? "Provided" : "Not provided"} />
               <Detail label="Agreement" value={dep.agreement?.eSignStatus === "SIGNED" ? "Signed (e-sign)" : "Not signed"} />
             </div>
+            <div className="flex flex-wrap gap-4 border-t border-slate-100 px-5 py-3 text-sm">
+              <Link href={`/workers/${dep.workerId}`} className="text-brand-600 hover:underline">Worker profile →</Link>
+              <Link href={`/hotels/${dep.homeHotelId}`} className="text-brand-600 hover:underline">Home hotel →</Link>
+              <Link href={`/hotels/${dep.demandHotelId}`} className="text-brand-600 hover:underline">Host hotel →</Link>
+            </div>
           </Card>
 
           <Card>
@@ -98,23 +104,34 @@ export default async function DeputationDetail({ params }: { params: Promise<{ i
           {canRate && (
             <Card>
               <CardHeader title="Ratings" subtitle="Build the portable reputation that makes the network sticky." />
-              <div className="space-y-4 p-5">
-                {actor === "DEMAND_HOTEL" && <RatingForm id={dep.id} targetType="WORKER" label={`Rate ${dep.worker.name}`} />}
-                <RatingForm
-                  id={dep.id}
-                  targetType="HOTEL"
-                  label={`Rate ${actor === "DEMAND_HOTEL" ? dep.homeHotel.name : dep.demandHotel.name}`}
-                />
-                {dep.ratings.length > 0 && (
+              <div className="space-y-5 p-5">
+                {actor === "DEMAND_HOTEL" && (
+                  <DimensionRatingForm id={dep.id} targetType="WORKER" title={`Rate ${dep.worker.name}`} dims={WORKER_RATING_DIMENSIONS} rehire />
+                )}
+                {(actor === "DEMAND_HOTEL" || actor === "HOME_HOTEL") && (
+                  <DimensionRatingForm
+                    id={dep.id}
+                    targetType="HOTEL"
+                    title={`Rate ${actor === "DEMAND_HOTEL" ? dep.homeHotel.name : dep.demandHotel.name}`}
+                    dims={HOTEL_RATING_DIMENSIONS}
+                  />
+                )}
+                {dep.ratings.filter((r) => r.status === "VISIBLE").length > 0 && (
                   <div className="border-t border-slate-100 pt-4">
                     <p className="mb-2 text-xs font-medium text-slate-500">Ratings so far</p>
-                    <ul className="space-y-1 text-sm text-slate-600">
-                      {dep.ratings.map((r) => (
-                        <li key={r.id}>
-                          ★ {r.score} — {r.raterLabel} on {r.targetWorker?.name ?? r.targetHotel?.name}
-                          {r.comment ? `: “${r.comment}”` : ""}
-                        </li>
-                      ))}
+                    <ul className="space-y-2 text-sm text-slate-600">
+                      {dep.ratings
+                        .filter((r) => r.status === "VISIBLE")
+                        .map((r) => (
+                          <li key={r.id} className="flex flex-wrap items-center gap-2">
+                            <Stars value={r.score} />
+                            <span className="text-slate-500">
+                              {r.raterLabel} → {r.targetWorker?.name ?? r.targetHotel?.name}
+                            </span>
+                            {r.wouldRehire && <span className="text-green-600">· would rehire</span>}
+                            {r.comment ? <span className="text-slate-400">“{r.comment}”</span> : null}
+                          </li>
+                        ))}
                     </ul>
                   </div>
                 )}
@@ -178,27 +195,51 @@ function actorLabel(a: Actor): string {
   return a === "HOME_HOTEL" ? "home hotel" : a === "DEMAND_HOTEL" ? "host hotel" : a === "WORKER" ? "worker" : "platform";
 }
 
-function RatingForm({ id, targetType, label }: { id: string; targetType: "WORKER" | "HOTEL"; label: string }) {
+function DimensionRatingForm({
+  id,
+  targetType,
+  title,
+  dims,
+  rehire = false,
+  targetHotelId,
+}: {
+  id: string;
+  targetType: "WORKER" | "HOTEL";
+  title: string;
+  dims: readonly RatingDimension[];
+  rehire?: boolean;
+  targetHotelId?: string;
+}) {
   return (
-    <form action={submitRating} className="flex flex-wrap items-end gap-3">
+    <form action={submitRating} className="space-y-3 rounded-lg border border-slate-200 p-4">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="targetType" value={targetType} />
-      <Field label={label}>
-        <Select name="score" defaultValue="5" className="w-28">
-          <option value="5">★★★★★</option>
-          <option value="4">★★★★</option>
-          <option value="3">★★★</option>
-          <option value="2">★★</option>
-          <option value="1">★</option>
-        </Select>
-      </Field>
+      {targetHotelId && <input type="hidden" name="targetHotelId" value={targetHotelId} />}
+      <p className="text-sm font-medium text-slate-700">{title}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {dims.map((d) => (
+          <label key={d.key} className="flex items-center justify-between gap-2 text-sm text-slate-600">
+            {d.label}
+            <Select name={`dim_${d.key}`} defaultValue="4" className="w-16">
+              {[5, 4, 3, 2, 1].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </Select>
+          </label>
+        ))}
+      </div>
+      {rehire && (
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" name="wouldRehire" defaultChecked /> Would rehire this worker
+        </label>
+      )}
       <input
         name="comment"
         placeholder="Optional comment"
-        className="min-w-[12rem] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
       />
       <SubmitButton size="sm" variant="secondary" pendingText="Saving…">
-        Submit
+        Submit rating
       </SubmitButton>
     </form>
   );

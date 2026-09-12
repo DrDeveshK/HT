@@ -12,6 +12,9 @@ export interface MatchWorker {
   availabilityStatus: string; // AVAILABLE | ON_DEPUTATION | UNAVAILABLE
   kycStatus: string; // PENDING | VERIFIED | REJECTED
   willingZones?: string[]; // zones the worker will relocate to (M2)
+  rehireRate?: number; // 0-1 portable would-rehire rate (M3)
+  reliability?: number; // 0-5 reliability-dimension average (M3)
+  previouslyRehiredByDemand?: boolean; // this demand hotel has favourited/rehired them (M3)
 }
 
 export interface MatchDemand {
@@ -62,6 +65,21 @@ export function scoreMatch(worker: MatchWorker, demand: MatchDemand): ScoredMatc
   // Reputation (0-5 -> 0-15).
   score += clamp(worker.reputationScore, 0, 5) * 3;
   if (worker.reputationScore >= 4) reasons.push("Highly rated");
+
+  // Portable rehire signal (M3): hotels trust workers others bring back.
+  if (worker.rehireRate && worker.rehireRate > 0) {
+    score += Math.round(clamp(worker.rehireRate, 0, 1) * 10);
+    if (worker.rehireRate >= 0.75) reasons.push(`${Math.round(worker.rehireRate * 100)}% would-rehire`);
+  }
+  if (worker.reliability && worker.reliability >= 4) {
+    score += 3;
+    reasons.push("Reliable on past deputations");
+  }
+  // Strongest signal: this same hotel already wants them back.
+  if (worker.previouslyRehiredByDemand) {
+    score += 15;
+    reasons.push("You've worked with them before");
+  }
 
   // Experience (0-10y -> 0-10).
   score += clamp(worker.experienceYears, 0, 10);

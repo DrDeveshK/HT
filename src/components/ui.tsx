@@ -196,3 +196,36 @@ export function Th({ children, className }: { children?: React.ReactNode; classN
 export function Td({ children, className }: { children?: React.ReactNode; className?: string }) {
   return <td className={cn("border-b border-slate-100 px-3 py-2 text-slate-700", className)}>{children}</td>;
 }
+
+// ---- Ratings & reputation (M3) ----
+export function Stars({ value, showNumber = true }: { value: number; showNumber?: boolean }) {
+  const full = Math.round(value);
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden className="text-amber-500">
+        {"★".repeat(full)}
+        <span className="text-slate-200">{"★".repeat(Math.max(0, 5 - full))}</span>
+      </span>
+      {showNumber && <span className="text-sm font-medium text-slate-700">{value ? value.toFixed(1) : "—"}</span>}
+    </span>
+  );
+}
+
+export function RatingBar({ label, value }: { label: string; value: number }) {
+  const pct = Math.max(0, Math.min(100, (value / 5) * 100));
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-32 shrink-0 text-xs text-slate-500">{label}</span>
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-8 shrink-0 text-right text-xs font-medium text-slate-700">{value ? value.toFixed(1) : "—"}</span>
+    </div>
+  );
+}
+
+export function RehirePill({ rate }: { rate: number }) {
+  const pct = Math.round(rate * 100);
+  const tone: Tone = pct >= 75 ? "green" : pct >= 40 ? "amber" : "slate";
+  return <Badge tone={tone}>↻ {pct}% rehire</Badge>;
+}

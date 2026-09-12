@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { REVENUE_MODULE_CATALOG } from "../src/core/monetization";
+import { aggregateWorker, aggregateHotel } from "../src/core/reputation";
 
 const prisma = new PrismaClient();
 const PW = bcrypt.hashSync("password123", 10);
@@ -301,6 +302,61 @@ async function main() {
   await prisma.seasonDeclaration.create({
     data: { hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Cook"], headcount: 1, startDate: d(14), endDate: d(104), wageOfferPaise: 130000, housingProvided: true, note: "Peak-season kitchen support needed." },
   });
+
+  // ---------------- M3 demo: completed corridor + symmetric reviews ----------------
+  const overallOf = (m: Record<string, number>) =>
+    Math.round(Object.values(m).reduce((s, n) => s + n, 0) / Object.values(m).length);
+  const clamp5 = (n: number) => Math.max(1, Math.min(5, n));
+
+  async function recomputeWorker(workerId: string) {
+    const rs = await prisma.rating.findMany({ where: { targetWorkerId: workerId } });
+    const a = aggregateWorker(rs);
+    const deputationsCount = await prisma.deputation.count({ where: { workerId, state: { in: ["COMPLETED", "RETURNED"] } } });
+    await prisma.worker.update({
+      where: { id: workerId },
+      data: { reputationScore: a.overall, ratingCount: a.count, dimensionAggJson: JSON.stringify(a.dims), rehireRate: a.rehireRate, deputationsCount },
+    });
+  }
+  async function recomputeHotel(hotelId: string) {
+    const rs = await prisma.rating.findMany({ where: { targetHotelId: hotelId } });
+    const a = aggregateHotel(rs);
+    await prisma.hotel.update({ where: { id: hotelId }, data: { ratingAggJson: JSON.stringify(a.dims), ratingCount: a.count } });
+  }
+
+  // Every worker has one past Goa→Manali deputation + a host review (gives real portable reputation).
+  for (const w of workers) {
+    const dep = await prisma.deputation.create({
+      data: {
+        workerId: w.id, homeHotelId: hotelA.id, demandHotelId: hotelB.id, roleId: w.primaryRoleId,
+        startDate: d(-120), endDate: d(-30), wagePerDayPaise: 90000, housingProvided: true, state: "COMPLETED",
+      },
+    });
+    const r = clamp5(Math.round(w.reputationScore));
+    const wd = { skill: r, punctuality: clamp5(r), grooming: r, guestHandling: clamp5(r - 1), teamwork: r, reliability: r };
+    await prisma.rating.create({
+      data: {
+        deputationId: dep.id, targetWorkerId: w.id, raterLabel: "Host Hotel", raterRole: "HOST_HOTEL",
+        score: overallOf(wd), scoresJson: JSON.stringify(wd), wouldRehire: w.reputationScore >= 4.3,
+        comment: w.reputationScore >= 4.5 ? "Excellent — guests noticed. Would take again next peak." : null,
+      },
+    });
+    // Two workers review the host hotel (reverse reputation); worker@ (workers[0]) is left free to rate live in the UI.
+    if (w.id === workers[1].id || w.id === workers[4].id) {
+      const hd = { fairTreatment: 5, timelyPay: 4, accommodation: 4, workConditions: 5, respect: 5 };
+      await prisma.rating.create({
+        data: {
+          deputationId: dep.id, targetHotelId: hotelB.id, raterLabel: "Worker", raterRole: "WORKER",
+          score: overallOf(hd), scoresJson: JSON.stringify(hd),
+          comment: "Fair employer — paid on time, decent staff quarters. Would return.",
+        },
+      });
+    }
+  }
+
+  await prisma.favourite.create({ data: { hotelId: hotelB.id, workerId: workers[0].id } });
+
+  for (const w of workers) await recomputeWorker(w.id);
+  await recomputeHotel(hotelB.id);
 
   console.log("Seed complete:");
   console.log(`  ${regionCount} hotspots across ${STATES.length} states/UTs × 12 seasonal packs`);
