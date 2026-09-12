@@ -43,6 +43,10 @@ async function main() {
     ["/admin/workers", admin, "talent pool"],
     ["/admin/deputations", admin, "in progress"],
     ["/admin/revenue", admin, "Revenue to date"],
+    ["/admin/taxonomy", admin, "Roles"],
+    ["/admin/plans", admin, "Subscription tiers"],
+    ["/admin/settings", admin, "Amenities"],
+    ["/admin/seasons", admin, "Add a destination"],
     ["/worker", worker, "Your deputations"],
   ];
 

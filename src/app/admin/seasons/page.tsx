@@ -1,7 +1,10 @@
 import { requireRole } from "@/lib/auth";
 import { loadSeasonContext } from "@/lib/seasonal-data";
-import { PageHeader } from "@/components/ui";
+import { addHotspot } from "@/actions/admin";
+import { SubmitButton } from "@/components/SubmitButton";
+import { PageHeader, Card, Field, Input, Select } from "@/components/ui";
 import { cn } from "@/lib/cn";
+import { ARCHETYPES, ZONES } from "@/lib/archetypes";
 import { MONTHS, SEASON_STATE_STYLE, type SeasonState } from "@/lib/constants";
 
 const ZONE_LABEL: Record<string, string> = {
@@ -38,6 +41,23 @@ export default async function AdminSeasons() {
           </span>
         ))}
       </div>
+
+      <Card className="mb-6 p-5">
+        <h3 className="mb-3 font-semibold text-slate-900">Add a destination</h3>
+        <form action={addHotspot} className="flex flex-wrap items-end gap-3">
+          <Field label="Name"><Input name="name" placeholder="e.g. Coonoor" required /></Field>
+          <Field label="State / UT"><Input name="state" placeholder="e.g. Tamil Nadu" required /></Field>
+          <Field label="Zone">
+            <Select name="zone" defaultValue="SOUTH">{ZONES.map((z) => <option key={z} value={z}>{z}</option>)}</Select>
+          </Field>
+          <Field label="Season profile">
+            <Select name="arch" defaultValue="HILL">
+              {Object.entries(ARCHETYPES).map(([k, a]) => <option key={k} value={k}>{a.label}</option>)}
+            </Select>
+          </Field>
+          <SubmitButton pendingText="Adding…">Add destination</SubmitButton>
+        </form>
+      </Card>
 
       <div className="space-y-6">
         {zones.map((zone) => {
