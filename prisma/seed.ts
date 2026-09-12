@@ -151,6 +151,8 @@ async function wipe() {
   await prisma.rating.deleteMany();
   await prisma.offer.deleteMany();
   await prisma.favourite.deleteMany();
+  await prisma.dispute.deleteMany();
+  await prisma.message.deleteMany();
   await prisma.ledgerEntry.deleteMany();
   await prisma.agreement.deleteMany();
   await prisma.deputation.deleteMany();
@@ -383,6 +385,15 @@ async function main() {
   });
   await prisma.notification.create({ data: { recipientUserId: hillsUser.id, title: "New counter-offer", body: "Home hotel proposed ₹1,050/day." } });
   await prisma.notification.create({ data: { recipientUserId: workerUser.id, title: "Welcome to HT", body: "Your reputation is now visible to hotels across India." } });
+
+  // ---------------- M6: analytics assumptions + a filled declaration ----------------
+  await prisma.platformSetting.create({
+    data: { key: "savings", valueJson: JSON.stringify({ rehireCostPaise: 1500000, retrainCostPaise: 800000, idlePayrollRecoveryPct: 60 }) },
+  });
+  await prisma.seasonDeclaration.updateMany({
+    where: { hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Housekeeping"] },
+    data: { status: "FULFILLED" },
+  });
 
   console.log("Seed complete:");
   console.log(`  ${regionCount} hotspots across ${STATES.length} states/UTs × 12 seasonal packs`);

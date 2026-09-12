@@ -4,6 +4,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 
 const NAV: NavItem[] = [
   { href: "/worker", label: "My work", exact: true },
+  { href: "/worker/planner", label: "Planner" },
   { href: "/worker/profile", label: "Profile" },
 ];
 
