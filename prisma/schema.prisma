@@ -1,0 +1,245 @@
+// HT — Hospitality Talent Exchange
+// SQLite for local dev (zero external deps). Portable to Postgres:
+//  - no native enums (String + app-level unions in src/lib/constants.ts)
+//  - no scalar lists (skills stored as JSON text)
+//  - no Json type (config/terms stored as JSON text)
+//  - money stored as integer paise (₹1 = 100 paise) to avoid float drift
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- Identity ----------------
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  name          String
+  role          String // HOTELIER_ADMIN | WORKER | PLATFORM_ADMIN
+  hotelId       String?
+  hotel         Hotel?         @relation(fields: [hotelId], references: [id])
+  workerId      String?        @unique
+  worker        Worker?        @relation(fields: [workerId], references: [id])
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+}
+
+// ---------------- Geography & seasons ----------------
+model Region {
+  id           String         @id @default(cuid())
+  code         String         @unique
+  name         String
+  zone         String // NORTH | SOUTH | EAST | WEST | CENTRAL | NORTHEAST
+  dominantType String // MOUNTAIN | BEACH | DESERT | BACKWATER | PILGRIMAGE | WILDLIFE | BUSINESS | HILL_TEMPLE
+  hotels       Hotel[]
+  packs        SeasonalPack[]
+}
+
+model SeasonalPack {
+  id       String  @id @default(cuid())
+  regionId String
+  region   Region  @relation(fields: [regionId], references: [id])
+  month    Int // 1-12
+  state    String // PEAK | SHOULDER | OFF
+  note     String?
+
+  @@unique([regionId, month])
+}
+
+// ---------------- Hotels ----------------
+model HotelGroup {
+  id        String   @id @default(cuid())
+  name      String
+  hotels    Hotel[]
+  createdAt DateTime @default(now())
+}
+
+model Hotel {
+  id        String      @id @default(cuid())
+  name      String
+  groupId   String?
+  group     HotelGroup? @relation(fields: [groupId], references: [id])
+  regionId  String
+  region    Region      @relation(fields: [regionId], references: [id])
+  city      String
+  lat       Float?
+  lng       Float?
+  rooms     Int         @default(0)
+  tier      String      @default("MID") // BUDGET | MID | UPSCALE
+  createdAt DateTime    @default(now())
+
+  users             User[]
+  subscription      Subscription?
+  declarations      SeasonDeclaration[]
+  homeWorkers       Worker[]            @relation("HomeHotelWorkers")
+  homeDeputations   Deputation[]        @relation("HomeHotelDeputations")
+  demandDeputations Deputation[]        @relation("DemandHotelDeputations")
+  ratings           Rating[]            @relation("HotelRatings")
+}
+
+model Subscription {
+  id               String    @id @default(cuid())
+  hotelId          String    @unique
+  hotel            Hotel     @relation(fields: [hotelId], references: [id])
+  plan             String    @default("FREE") // FREE | STARTER | GROWTH | ENTERPRISE
+  status           String    @default("ACTIVE") // ACTIVE | TRIALING | PAST_DUE | CANCELLED
+  currentPeriodEnd DateTime?
+  providerRef      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// ---------------- Roles / workers ----------------
+model Role {
+  id           String              @id @default(cuid())
+  name         String              @unique
+  category     String // HOUSEKEEPING | FNB | FRONT_OFFICE | KITCHEN | MAINTENANCE | WELLNESS | SECURITY | OTHER
+  workers      Worker[]
+  declarations SeasonDeclaration[]
+  deputations  Deputation[]
+}
+
+model Worker {
+  id                 String   @id @default(cuid())
+  name               String
+  phone              String?
+  homeHotelId        String
+  homeHotel          Hotel    @relation("HomeHotelWorkers", fields: [homeHotelId], references: [id])
+  primaryRoleId      String
+  primaryRole        Role     @relation(fields: [primaryRoleId], references: [id])
+  skillsJson         String   @default("[]") // JSON array of skill tags
+  experienceYears    Int      @default(0)
+  expectedWagePaise  Int      @default(0) // per day
+  availabilityStatus String   @default("AVAILABLE") // AVAILABLE | ON_DEPUTATION | UNAVAILABLE
+  kycStatus          String   @default("PENDING") // PENDING | VERIFIED | REJECTED
+  reputationScore    Float    @default(0)
+  ratingCount        Int      @default(0)
+  consentGiven       Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  user        User?
+  deputations Deputation[]
+  ratings     Rating[]     @relation("WorkerRatings")
+}
+
+// ---------------- Marketplace ----------------
+model SeasonDeclaration {
+  id              String       @id @default(cuid())
+  hotelId         String
+  hotel           Hotel        @relation(fields: [hotelId], references: [id])
+  type            String // SURPLUS | DEMAND
+  roleId          String
+  role            Role         @relation(fields: [roleId], references: [id])
+  headcount       Int          @default(1)
+  startDate       DateTime
+  endDate         DateTime
+  wageOfferPaise  Int          @default(0) // per day
+  housingProvided Boolean      @default(false)
+  status          String       @default("OPEN") // OPEN | FULFILLED | CLOSED
+  note            String?
+  createdAt       DateTime     @default(now())
+  deputations     Deputation[]
+}
+
+model Deputation {
+  id              String             @id @default(cuid())
+  declarationId   String?
+  declaration     SeasonDeclaration? @relation(fields: [declarationId], references: [id])
+  workerId        String
+  worker          Worker             @relation(fields: [workerId], references: [id])
+  homeHotelId     String
+  homeHotel       Hotel              @relation("HomeHotelDeputations", fields: [homeHotelId], references: [id])
+  demandHotelId   String
+  demandHotel     Hotel              @relation("DemandHotelDeputations", fields: [demandHotelId], references: [id])
+  roleId          String
+  role            Role               @relation(fields: [roleId], references: [id])
+  startDate       DateTime
+  endDate         DateTime
+  wagePerDayPaise Int                @default(0)
+  housingProvided Boolean            @default(false)
+  state           String             @default("REQUESTED") // REQUESTED|ACCEPTED|AGREED|IN_TRANSIT|ACTIVE|COMPLETED|RETURNED|CANCELLED
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  agreement     Agreement?
+  ledgerEntries LedgerEntry[]
+  ratings       Rating[]
+}
+
+model Agreement {
+  id              String     @id @default(cuid())
+  deputationId    String     @unique
+  deputation      Deputation @relation(fields: [deputationId], references: [id])
+  termsJson       String     @default("{}")
+  eSignStatus     String     @default("DRAFT") // DRAFT | SIGNED
+  homeSignedAt    DateTime?
+  demandSignedAt  DateTime?
+  workerConsentAt DateTime?
+  createdAt       DateTime   @default(now())
+}
+
+model Rating {
+  id             String     @id @default(cuid())
+  deputationId   String
+  deputation     Deputation @relation(fields: [deputationId], references: [id])
+  targetWorkerId String?
+  targetWorker   Worker?    @relation("WorkerRatings", fields: [targetWorkerId], references: [id])
+  targetHotelId  String?
+  targetHotel    Hotel?     @relation("HotelRatings", fields: [targetHotelId], references: [id])
+  raterLabel     String // e.g., "Demand Hotel" | "Home Hotel" | "Worker"
+  score          Int // 1-5
+  comment        String?
+  createdAt      DateTime   @default(now())
+}
+
+// ---------------- Money ----------------
+model LedgerEntry {
+  id           String      @id @default(cuid())
+  deputationId String?
+  deputation   Deputation? @relation(fields: [deputationId], references: [id])
+  type         String // CHARGE | PLATFORM_FEE | PAYOUT_WORKER | PAYOUT_HOME_HOTEL | SUBSCRIPTION | ADJUSTMENT
+  moduleKey    String?
+  amountPaise  Int
+  direction    String // DEBIT | CREDIT | REVENUE
+  payeeType    String? // WORKER | HOME_HOTEL | DEMAND_HOTEL | PLATFORM
+  description  String
+  createdAt    DateTime    @default(now())
+}
+
+// ---------------- Monetization config (toggleable revenue modules) ----------------
+model RevenueModule {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  enabled     Boolean  @default(false)
+  configJson  String   @default("{}")
+  sortOrder   Int      @default(0)
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------- Ops ----------------
+model Notification {
+  id              String    @id @default(cuid())
+  recipientUserId String?
+  recipient       User?     @relation(fields: [recipientUserId], references: [id])
+  title           String
+  body            String
+  readAt          DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entity      String
+  entityId    String?
+  metaJson    String?
+  createdAt   DateTime @default(now())
+}
