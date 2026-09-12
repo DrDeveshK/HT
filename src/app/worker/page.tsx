@@ -93,7 +93,7 @@ export default async function WorkerHome() {
                       return {};
                     }
                   })();
-                  const isOffer = d.state === "REQUESTED";
+                  const isOffer = d.state === "REQUESTED" || d.state === "NEGOTIATING";
                   const canRateHost =
                     (d.state === "COMPLETED" || d.state === "RETURNED") &&
                     !d.ratings.some((r) => r.raterRole === "WORKER" && r.targetHotelId === d.demandHotelId);

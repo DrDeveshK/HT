@@ -40,6 +40,7 @@ export async function requestDeputation(formData: FormData) {
   const wagePerDayPaise =
     wageRupees > 0 ? Math.round(wageRupees * 100) : decl?.wageOfferPaise || worker.expectedWagePaise;
 
+  const housingProvided = decl?.housingProvided ?? true;
   const dep = await prisma.deputation.create({
     data: {
       declarationId: declarationId ?? undefined,
@@ -50,8 +51,21 @@ export async function requestDeputation(formData: FormData) {
       startDate: start,
       endDate: end,
       wagePerDayPaise,
-      housingProvided: decl?.housingProvided ?? true,
-      state: "REQUESTED",
+      housingProvided,
+      state: "NEGOTIATING",
+    },
+  });
+  // Opening offer kicks off the negotiation (M4).
+  await prisma.offer.create({
+    data: {
+      deputationId: dep.id,
+      byParty: "DEMAND_HOTEL",
+      wagePerDayPaise,
+      startDate: start,
+      endDate: end,
+      housingProvided,
+      status: "PROPOSED",
+      note: "Opening offer",
     },
   });
 
@@ -158,4 +172,99 @@ export async function submitRating(formData: FormData) {
   revalidatePath(`/hotel/deputations/${id}`);
   revalidatePath("/hotel/marketplace");
   revalidatePath("/worker");
+}
+
+// ---------------- M4: wage/terms negotiation ----------------
+export async function makeCounterOffer(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("id"));
+  const dep = await prisma.deputation.findUnique({ where: { id } });
+  if (!dep) throw new Error("Deputation not found.");
+  const actor = actorFor(user, dep);
+  if (!actor || actor === "PLATFORM") throw new Error("Not authorized to negotiate.");
+  if (dep.state !== "NEGOTIATING" && dep.state !== "REQUESTED") throw new Error("Negotiation is closed.");
+
+  const wagePerDayPaise = Math.round(Number(formData.get("wageRupees") || 0) * 100);
+  if (wagePerDayPaise <= 0) throw new Error("Enter a wage.");
+  const startDate = formData.get("startDate") ? new Date(String(formData.get("startDate"))) : dep.startDate;
+  const endDate = formData.get("endDate") ? new Date(String(formData.get("endDate"))) : dep.endDate;
+  const housingProvided = formData.get("housingProvided") === "on";
+  const note = String(formData.get("note") || "") || null;
+
+  // Supersede any still-open offer, then post the counter.
+  await prisma.offer.updateMany({
+    where: { deputationId: id, status: { in: ["PROPOSED", "COUNTERED"] } },
+    data: { status: "COUNTERED" },
+  });
+  await prisma.offer.create({
+    data: { deputationId: id, byParty: actor, wagePerDayPaise, startDate, endDate, housingProvided, note, status: "PROPOSED" },
+  });
+  if (dep.state === "REQUESTED") await prisma.deputation.update({ where: { id }, data: { state: "NEGOTIATING" } });
+
+  revalidatePath(`/hotel/deputations/${id}`);
+}
+
+export async function acceptOffer(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("id"));
+  const offerId = String(formData.get("offerId"));
+  const dep = await prisma.deputation.findUnique({ where: { id } });
+  if (!dep) throw new Error("Deputation not found.");
+  const actor = actorFor(user, dep);
+  if (!actor || actor === "PLATFORM") throw new Error("Not authorized.");
+  const offer = await prisma.offer.findUnique({ where: { id: offerId } });
+  if (!offer || offer.deputationId !== id) throw new Error("Offer not found.");
+  if (offer.status !== "PROPOSED" && offer.status !== "COUNTERED") throw new Error("Offer no longer open.");
+  if (offer.byParty === actor) throw new Error("You cannot accept your own offer — wait for the other party.");
+
+  await prisma.offer.update({ where: { id: offerId }, data: { status: "ACCEPTED" } });
+  await prisma.offer.updateMany({
+    where: { deputationId: id, status: { in: ["PROPOSED", "COUNTERED"] }, id: { not: offerId } },
+    data: { status: "REJECTED" },
+  });
+  // Lock the agreed terms onto the deputation and advance.
+  await prisma.deputation.update({
+    where: { id },
+    data: {
+      wagePerDayPaise: offer.wagePerDayPaise,
+      startDate: offer.startDate,
+      endDate: offer.endDate,
+      housingProvided: offer.housingProvided,
+      state: "ACCEPTED",
+    },
+  });
+
+  revalidatePath(`/hotel/deputations/${id}`);
+  revalidatePath("/hotel/deputations");
+  revalidatePath("/worker");
+}
+
+export async function rejectOffer(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("id"));
+  const offerId = String(formData.get("offerId"));
+  const dep = await prisma.deputation.findUnique({ where: { id } });
+  if (!dep) throw new Error("Deputation not found.");
+  const actor = actorFor(user, dep);
+  if (!actor || actor === "PLATFORM") throw new Error("Not authorized.");
+  const offer = await prisma.offer.findUnique({ where: { id: offerId } });
+  if (!offer || offer.deputationId !== id) throw new Error("Offer not found.");
+  if (offer.byParty === actor) throw new Error("Use withdraw for your own offer.");
+  await prisma.offer.update({ where: { id: offerId }, data: { status: "REJECTED" } });
+  revalidatePath(`/hotel/deputations/${id}`);
+}
+
+export async function withdrawOffer(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("id"));
+  const offerId = String(formData.get("offerId"));
+  const dep = await prisma.deputation.findUnique({ where: { id } });
+  if (!dep) throw new Error("Deputation not found.");
+  const actor = actorFor(user, dep);
+  if (!actor) throw new Error("Not authorized.");
+  const offer = await prisma.offer.findUnique({ where: { id: offerId } });
+  if (!offer || offer.deputationId !== id) throw new Error("Offer not found.");
+  if (offer.byParty !== actor) throw new Error("You can only withdraw your own offer.");
+  await prisma.offer.update({ where: { id: offerId }, data: { status: "WITHDRAWN" } });
+  revalidatePath(`/hotel/deputations/${id}`);
 }

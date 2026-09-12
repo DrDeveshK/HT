@@ -186,6 +186,7 @@ model Deputation {
   agreement     Agreement?
   ledgerEntries LedgerEntry[]
   ratings       Rating[]
+  offers        Offer[]
 }
 
 model Agreement {
@@ -318,6 +319,22 @@ model HotelAmenity {
   amenity   Amenity @relation(fields: [amenityId], references: [id])
 
   @@unique([hotelId, amenityId])
+}
+
+// ---------------- M4: wage/terms negotiation ----------------
+model Offer {
+  id              String     @id @default(cuid())
+  deputationId    String
+  deputation      Deputation @relation(fields: [deputationId], references: [id])
+  byParty         String // DEMAND_HOTEL | HOME_HOTEL | WORKER
+  wagePerDayPaise Int
+  startDate       DateTime
+  endDate         DateTime
+  headcount       Int        @default(1)
+  housingProvided Boolean    @default(true)
+  note            String?
+  status          String     @default("PROPOSED") // PROPOSED | COUNTERED | ACCEPTED | REJECTED | WITHDRAWN
+  createdAt       DateTime   @default(now())
 }
 
 // ---------------- M3: one-click rehire shortlist ----------------

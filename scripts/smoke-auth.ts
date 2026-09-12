@@ -82,6 +82,18 @@ async function main() {
     if (!okhp) ok = false;
   } else ok = false;
 
+  // M4 negotiation (dynamic id)
+  const neg = await prisma.deputation.findFirst({ where: { state: "NEGOTIATING" } });
+  if (neg) {
+    const dm = await get(`/hotel/deputations/${neg.id}`, hills); // demand hotel can accept
+    const okDm = dm.status === 200 && dm.body.includes("Negotiation") && dm.body.includes("Accept these terms");
+    console.log(`/deputations/:id (host)  ${dm.status} ${okDm ? "✓" : "✗ MISSING"} accept offer`);
+    const hm = await get(`/hotel/deputations/${neg.id}`, goa); // home hotel can counter
+    const okHm = hm.status === 200 && hm.body.includes("Send counter-offer");
+    console.log(`/deputations/:id (home)  ${hm.status} ${okHm ? "✓" : "✗ MISSING"} counter-offer`);
+    if (!okDm || !okHm) ok = false;
+  } else ok = false;
+
   const mk = await get("/hotel/marketplace", hills);
   const showsWorker = mk.body.includes("Ramesh Kumar");
   const showsMatch = mk.body.includes("% match"); // ScorePill rendered

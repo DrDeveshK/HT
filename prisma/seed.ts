@@ -149,6 +149,8 @@ async function wipe() {
   await prisma.plan.deleteMany();
   await prisma.platformSetting.deleteMany();
   await prisma.rating.deleteMany();
+  await prisma.offer.deleteMany();
+  await prisma.favourite.deleteMany();
   await prisma.ledgerEntry.deleteMany();
   await prisma.agreement.deleteMany();
   await prisma.deputation.deleteMany();
@@ -357,6 +359,21 @@ async function main() {
 
   for (const w of workers) await recomputeWorker(w.id);
   await recomputeHotel(hotelB.id);
+
+  // ---------------- M4 demo: a live wage negotiation (Goa → Manali) ----------------
+  const negWorker = workers[2];
+  const negDep = await prisma.deputation.create({
+    data: {
+      workerId: negWorker.id, homeHotelId: hotelA.id, demandHotelId: hotelB.id, roleId: negWorker.primaryRoleId,
+      startDate: d(14), endDate: d(104), wagePerDayPaise: 90000, housingProvided: true, state: "NEGOTIATING",
+    },
+  });
+  await prisma.offer.create({
+    data: { deputationId: negDep.id, byParty: "DEMAND_HOTEL", wagePerDayPaise: 90000, startDate: d(14), endDate: d(104), housingProvided: true, status: "COUNTERED", note: "Opening offer" },
+  });
+  await prisma.offer.create({
+    data: { deputationId: negDep.id, byParty: "HOME_HOTEL", wagePerDayPaise: 105000, startDate: d(14), endDate: d(104), housingProvided: true, status: "PROPOSED", note: "Peak-season rate for our trained staff" },
+  });
 
   console.log("Seed complete:");
   console.log(`  ${regionCount} hotspots across ${STATES.length} states/UTs × 12 seasonal packs`);

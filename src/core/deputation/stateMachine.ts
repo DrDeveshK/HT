@@ -2,7 +2,8 @@ import type { DeputationState } from "@/lib/constants";
 
 /** Allowed forward transitions for a deputation lifecycle. */
 export const DEPUTATION_TRANSITIONS: Record<DeputationState, DeputationState[]> = {
-  REQUESTED: ["ACCEPTED", "CANCELLED"],
+  REQUESTED: ["NEGOTIATING", "ACCEPTED", "CANCELLED"],
+  NEGOTIATING: ["ACCEPTED", "CANCELLED"],
   ACCEPTED: ["AGREED", "CANCELLED"],
   AGREED: ["IN_TRANSIT", "CANCELLED"],
   IN_TRANSIT: ["ACTIVE", "CANCELLED"],
@@ -39,6 +40,10 @@ export const DEPUTATION_ACTIONS: Partial<Record<DeputationState, TransitionActio
   REQUESTED: [
     { to: "ACCEPTED", label: "Accept request", by: ["HOME_HOTEL"] },
     { to: "CANCELLED", label: "Decline", by: ["HOME_HOTEL", "DEMAND_HOTEL"] },
+  ],
+  NEGOTIATING: [
+    // Accepting a wage happens via the offer panel (acceptOffer); this is the bail-out.
+    { to: "CANCELLED", label: "Cancel negotiation", by: ["HOME_HOTEL", "DEMAND_HOTEL"] },
   ],
   ACCEPTED: [
     { to: "AGREED", label: "Sign agreement", by: ["HOME_HOTEL", "DEMAND_HOTEL"] },
