@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { ARCHETYPES } from "@/lib/archetypes";
+import { recomputeWorkerReputation, recomputeHotelReputation } from "@/lib/reputation";
 
 const slug = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
 
@@ -136,4 +137,17 @@ export async function setSetting(formData: FormData) {
   if (!key) return;
   await prisma.platformSetting.upsert({ where: { key }, create: { key, valueJson: value }, update: { valueJson: value } });
   revalidatePath("/admin/settings");
+}
+
+// ---------------- M3: review moderation ----------------
+export async function setRatingStatus(formData: FormData) {
+  await requireRole("PLATFORM_ADMIN");
+  const id = String(formData.get("id"));
+  const status = String(formData.get("status"));
+  if (!["VISIBLE", "HIDDEN"].includes(status)) return;
+  const rating = await prisma.rating.update({ where: { id }, data: { status } });
+  // Hidden ratings must drop out of the aggregate immediately.
+  if (rating.targetWorkerId) await recomputeWorkerReputation(rating.targetWorkerId);
+  if (rating.targetHotelId) await recomputeHotelReputation(rating.targetHotelId);
+  revalidatePath("/admin/reviews");
 }

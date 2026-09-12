@@ -39,6 +39,38 @@ export type DeputationState = (typeof DEPUTATION_STATES)[number];
 export const SUBSCRIPTION_PLANS = ["FREE", "STARTER", "GROWTH", "ENTERPRISE"] as const;
 export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
 
+// ---- Ratings & reputation (M3) ----
+export const RATER_ROLES = ["HOST_HOTEL", "HOME_HOTEL", "WORKER"] as const;
+export type RaterRole = (typeof RATER_ROLES)[number];
+
+export const RATING_STATUSES = ["VISIBLE", "HIDDEN"] as const;
+export type RatingStatus = (typeof RATING_STATUSES)[number];
+
+export type RatingDimension = { key: string; label: string };
+
+// Host hotel rates a deputed worker on these.
+export const WORKER_RATING_DIMENSIONS: readonly RatingDimension[] = [
+  { key: "skill", label: "Skill" },
+  { key: "punctuality", label: "Punctuality" },
+  { key: "grooming", label: "Grooming" },
+  { key: "guestHandling", label: "Guest handling" },
+  { key: "teamwork", label: "Teamwork" },
+  { key: "reliability", label: "Reliability" },
+] as const;
+
+// Worker rates the host / home hotel on these (reverse feedback).
+export const HOTEL_RATING_DIMENSIONS: readonly RatingDimension[] = [
+  { key: "fairTreatment", label: "Fair treatment" },
+  { key: "timelyPay", label: "Timely pay" },
+  { key: "accommodation", label: "Accommodation" },
+  { key: "workConditions", label: "Work conditions" },
+  { key: "respect", label: "Respect" },
+] as const;
+
+export function dimensionsFor(target: "WORKER" | "HOTEL"): readonly RatingDimension[] {
+  return target === "WORKER" ? WORKER_RATING_DIMENSIONS : HOTEL_RATING_DIMENSIONS;
+}
+
 // ---- Plan pricing (paise / month) ----
 export const PLAN_PRICING: Record<
   SubscriptionPlan,

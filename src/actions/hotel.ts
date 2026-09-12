@@ -16,6 +16,19 @@ export async function toggleHotelAmenity(formData: FormData) {
   revalidatePath("/hotel/profile");
 }
 
+export async function toggleFavourite(formData: FormData) {
+  const user = await requireRole("HOTELIER_ADMIN");
+  if (!user.hotelId) return;
+  const workerId = String(formData.get("workerId"));
+  const existing = await prisma.favourite.findUnique({
+    where: { hotelId_workerId: { hotelId: user.hotelId, workerId } },
+  });
+  if (existing) await prisma.favourite.delete({ where: { id: existing.id } });
+  else await prisma.favourite.create({ data: { hotelId: user.hotelId, workerId } });
+  revalidatePath("/hotel/marketplace");
+  revalidatePath(`/workers/${workerId}`);
+}
+
 export async function updateHotelProfile(formData: FormData) {
   const user = await requireRole("HOTELIER_ADMIN");
   if (!user.hotelId) return;

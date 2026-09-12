@@ -28,6 +28,9 @@ async function main() {
     tokenFor("worker@ht.test"),
   ]);
 
+  const ramesh = await prisma.worker.findFirst({ where: { name: "Ramesh Kumar" } });
+  const hotelB = await prisma.hotel.findFirst({ where: { name: "Himalayan Vista Inn" } });
+
   const checks: [string, string, string][] = [
     ["/hotel", hills, "Welcome, Himalayan Vista Inn"],
     ["/hotel", hills, "Lakshadweep"], // island UT present in map
@@ -50,6 +53,11 @@ async function main() {
     ["/worker", worker, "Your deputations"],
     ["/worker/profile", worker, "My profile"],
     ["/hotel/profile", goa, "Property profile"],
+    // M3
+    ["/admin/reviews", admin, "Moderate"],
+    ["/hotel/marketplace", hills, "Your rehire shortlist"],
+    ["/worker", worker, "Employer rating"],
+    ["/worker", worker, "Rate this hotel"],
   ];
 
   let ok = true;
@@ -59,6 +67,20 @@ async function main() {
     if (status !== 200 || !found) ok = false;
     console.log(`${path.padEnd(24)} ${status} ${found ? "✓" : "✗ MISSING"} "${needle}"`);
   }
+
+  // M3 public profiles (dynamic ids)
+  if (ramesh) {
+    const wp = await get(`/workers/${ramesh.id}`, hills);
+    const okwp = wp.status === 200 && wp.body.includes("Performance breakdown") && wp.body.includes("Rehire rate");
+    console.log(`/workers/:id             ${wp.status} ${okwp ? "✓" : "✗ MISSING"} worker profile`);
+    if (!okwp) ok = false;
+  } else ok = false;
+  if (hotelB) {
+    const hp = await get(`/hotels/${hotelB.id}`, worker);
+    const okhp = hp.status === 200 && hp.body.includes("How they treat staff");
+    console.log(`/hotels/:id              ${hp.status} ${okhp ? "✓" : "✗ MISSING"} hotel profile`);
+    if (!okhp) ok = false;
+  } else ok = false;
 
   const mk = await get("/hotel/marketplace", hills);
   const showsWorker = mk.body.includes("Ramesh Kumar");

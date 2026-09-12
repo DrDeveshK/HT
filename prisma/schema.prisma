@@ -76,6 +76,8 @@ model Hotel {
   languagesJson        String  @default("[]")
   staffHousingCapacity Int     @default(0)
   brandStandards       String?
+  ratingAggJson        String  @default("{}") // reverse-reputation: per-dimension average from worker reviews
+  ratingCount          Int     @default(0) // number of worker reviews of this hotel
   createdAt DateTime    @default(now())
 
   users             User[]
@@ -86,6 +88,7 @@ model Hotel {
   demandDeputations Deputation[]        @relation("DemandHotelDeputations")
   ratings           Rating[]            @relation("HotelRatings")
   amenities         HotelAmenity[]
+  favourites        Favourite[]
 }
 
 model Subscription {
@@ -126,6 +129,9 @@ model Worker {
   kycStatus          String   @default("PENDING") // PENDING | VERIFIED | REJECTED
   reputationScore    Float    @default(0)
   ratingCount        Int      @default(0)
+  dimensionAggJson   String   @default("{}") // per-dimension average map
+  rehireRate         Float    @default(0) // 0-1 fraction of raters who would rehire
+  deputationsCount   Int      @default(0) // completed/returned deputations
   consentGiven       Boolean  @default(false)
   relocationPrefsJson String  @default("{}") // { zones: string[], maxDistanceKm?: number }
   emergencyContact   String?
@@ -135,6 +141,7 @@ model Worker {
   deputations Deputation[]
   ratings     Rating[]      @relation("WorkerRatings")
   skills      WorkerSkill[]
+  favourites  Favourite[]
 }
 
 // ---------------- Marketplace ----------------
@@ -202,7 +209,11 @@ model Rating {
   targetHotelId  String?
   targetHotel    Hotel?     @relation("HotelRatings", fields: [targetHotelId], references: [id])
   raterLabel     String // e.g., "Demand Hotel" | "Home Hotel" | "Worker"
-  score          Int // 1-5
+  raterRole      String     @default("HOST_HOTEL") // HOST_HOTEL | HOME_HOTEL | WORKER
+  score          Int // overall 1-5 (mean of dimensions)
+  scoresJson     String     @default("{}") // per-dimension 1-5 map
+  wouldRehire    Boolean    @default(false)
+  status         String     @default("VISIBLE") // VISIBLE | HIDDEN (moderation)
   comment        String?
   createdAt      DateTime   @default(now())
 }
@@ -307,4 +318,16 @@ model HotelAmenity {
   amenity   Amenity @relation(fields: [amenityId], references: [id])
 
   @@unique([hotelId, amenityId])
+}
+
+// ---------------- M3: one-click rehire shortlist ----------------
+model Favourite {
+  id        String   @id @default(cuid())
+  hotelId   String
+  hotel     Hotel    @relation(fields: [hotelId], references: [id])
+  workerId  String
+  worker    Worker   @relation(fields: [workerId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([hotelId, workerId])
 }
