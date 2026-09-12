@@ -9,6 +9,7 @@ const NAV: NavItem[] = [
   { href: "/hotel/marketplace", label: "Marketplace" },
   { href: "/hotel/declarations", label: "My declarations" },
   { href: "/hotel/deputations", label: "Deputations" },
+  { href: "/hotel/savings", label: "Savings" },
   { href: "/hotel/profile", label: "Profile" },
   { href: "/hotel/subscription", label: "Subscription" },
 ];

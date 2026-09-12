@@ -62,6 +62,11 @@ async function main() {
     ["/admin/disputes", admin, "heating"],
     ["/worker", worker, "Welcome to HT"],
     ["/worker", worker, "Messages ("],
+    // M6
+    ["/hotel/savings", goa, "Idle payroll recovered"],
+    ["/worker/planner", worker, "Follow-the-season"],
+    ["/admin/analytics", admin, "take-rate"],
+    ["/admin/analytics", admin, "Fill rate"],
   ];
 
   let ok = true;
