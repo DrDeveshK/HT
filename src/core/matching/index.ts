@@ -11,6 +11,7 @@ export interface MatchWorker {
   experienceYears: number;
   availabilityStatus: string; // AVAILABLE | ON_DEPUTATION | UNAVAILABLE
   kycStatus: string; // PENDING | VERIFIED | REJECTED
+  willingZones?: string[]; // zones the worker will relocate to (M2)
 }
 
 export interface MatchDemand {
@@ -18,6 +19,7 @@ export interface MatchDemand {
   demandRegionId: string;
   wageOfferPaise: number; // per day
   housingProvided: boolean;
+  demandZone?: string; // zone of the demanding hotel (M2)
 }
 
 export interface ScoredMatch {
@@ -74,6 +76,17 @@ export function scoreMatch(worker: MatchWorker, demand: MatchDemand): ScoredMatc
   if (demand.housingProvided) {
     score += 5;
     reasons.push("Housing provided");
+  }
+
+  // Relocation preference (M2): does the worker want to work in this zone?
+  if (worker.willingZones && worker.willingZones.length > 0 && demand.demandZone) {
+    if (worker.willingZones.includes(demand.demandZone)) {
+      score += 5;
+      reasons.push("Open to this region");
+    } else {
+      score -= 20;
+      reasons.push("Outside worker's preferred regions");
+    }
   }
 
   return { worker, score: clamp(Math.round(score), 0, 100), reasons };

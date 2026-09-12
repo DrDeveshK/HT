@@ -48,6 +48,8 @@ async function main() {
     ["/admin/settings", admin, "Amenities"],
     ["/admin/seasons", admin, "Add a destination"],
     ["/worker", worker, "Your deputations"],
+    ["/worker/profile", worker, "My profile"],
+    ["/hotel/profile", goa, "Property profile"],
   ];
 
   let ok = true;
