@@ -94,3 +94,8 @@ export function formatINR(paise: number): string {
 export function rupeesToPaise(rupees: number): number {
   return Math.round(rupees * 100);
 }
+
+export function formatDate(d: Date | string): string {
+  const dt = typeof d === "string" ? new Date(d) : d;
+  return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}

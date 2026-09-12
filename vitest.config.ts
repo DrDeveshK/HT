@@ -10,5 +10,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Integration tests hit the local SQLite DB; Prisma resolves this path
+    // relative to prisma/schema.prisma, i.e. prisma/dev.db (the seeded DB).
+    env: { DATABASE_URL: process.env.DATABASE_URL ?? "file:./dev.db" },
   },
 });

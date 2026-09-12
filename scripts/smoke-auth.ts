@@ -1,0 +1,64 @@
+import { SignJWT } from "jose";
+import { prisma } from "../src/lib/db";
+
+const base = "http://localhost:3000";
+const secret = new TextEncoder().encode(process.env.JWT_SECRET || "dev-only-insecure-secret");
+
+async function tokenFor(email: string): Promise<string> {
+  const u = await prisma.user.findUnique({ where: { email } });
+  if (!u) throw new Error("no user " + email);
+  return new SignJWT({ role: u.role })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(u.id)
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(secret);
+}
+
+async function get(path: string, token: string) {
+  const r = await fetch(base + path, { headers: { cookie: `ht_session=${token}` }, redirect: "manual" });
+  return { status: r.status, body: await r.text() };
+}
+
+async function main() {
+  const [goa, hills, admin, worker] = await Promise.all([
+    tokenFor("goa@ht.test"),
+    tokenFor("hills@ht.test"),
+    tokenFor("admin@ht.test"),
+    tokenFor("worker@ht.test"),
+  ]);
+
+  const checks: [string, string, string][] = [
+    ["/hotel", hills, "Welcome, Himalayan Vista Inn"],
+    ["/hotel/marketplace", hills, "Sunset Sands Resort"], // borrower sees Goa surplus
+    ["/hotel/declarations", goa, "Your declarations"],
+    ["/hotel/subscription", goa, "Growth"],
+    ["/admin", admin, "Platform overview"],
+    ["/admin/revenue", admin, "Deputation commission"],
+    ["/admin/seasons", admin, "Seasonal calendar"],
+    ["/worker", worker, "Your deputations"],
+  ];
+
+  let ok = true;
+  for (const [path, tok, needle] of checks) {
+    const { status, body } = await get(path, tok);
+    const found = body.includes(needle);
+    if (status !== 200 || !found) ok = false;
+    console.log(`${path.padEnd(24)} ${status} ${found ? "✓" : "✗ MISSING"} "${needle}"`);
+  }
+
+  const mk = await get("/hotel/marketplace", hills);
+  const showsWorker = mk.body.includes("Ramesh Kumar");
+  const showsMatch = mk.body.includes("% match"); // ScorePill rendered
+  console.log(`marketplace: worker listed ${showsWorker ? "✓" : "✗"}, match score ${showsMatch ? "✓" : "✗"}`);
+  if (!showsWorker || !showsMatch) ok = false;
+
+  console.log(ok ? "\nSMOKE-AUTH: PASS" : "\nSMOKE-AUTH: FAIL");
+  await prisma.$disconnect();
+  process.exit(ok ? 0 : 1);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
