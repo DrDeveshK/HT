@@ -10,6 +10,7 @@ export interface RegionLike {
   id: string;
   code: string;
   name: string;
+  state: string;
   zone: string;
   dominantType: string;
 }

@@ -8,81 +8,83 @@ const DAY = 86400000;
 const d = (days: number) => new Date(Date.now() + days * DAY);
 
 type S = "PEAK" | "SHOULDER" | "OFF";
+const P: S = "PEAK";
+const SH: S = "SHOULDER";
+const O: S = "OFF";
 
-interface RegionSeed {
+// Seasonal archetypes (Jan..Dec) assigned per HOTSPOT (not per state), so a
+// single state can hold hotspots with opposite seasons (e.g. Jaisalmer/DESERT
+// vs Mount Abu/HILL, or Srinagar/HIMALAYAN vs Gulmarg/SKI).
+const ARCH = {
+  HIMALAYAN: { type: "MOUNTAIN", m: [O, O, SH, P, P, P, SH, SH, P, P, SH, O] },
+  SKI: { type: "MOUNTAIN", m: [P, P, P, SH, SH, O, O, O, SH, SH, P, P] },
+  HILL: { type: "HILL", m: [SH, SH, SH, P, P, P, O, O, SH, P, P, SH] },
+  DESERT: { type: "DESERT", m: [P, P, SH, O, O, O, O, SH, SH, P, P, P] },
+  WEST_COAST: { type: "BEACH", m: [P, P, SH, SH, O, O, O, O, O, SH, P, P] },
+  EAST_COAST: { type: "BEACH", m: [P, P, SH, SH, O, O, SH, SH, SH, P, P, P] },
+  BACKWATER: { type: "BACKWATER", m: [P, P, SH, SH, O, O, O, SH, SH, SH, P, P] },
+  PILGRIMAGE: { type: "PILGRIMAGE", m: [P, P, SH, SH, O, O, SH, SH, SH, P, P, P] },
+  WILDLIFE: { type: "WILDLIFE", m: [P, P, P, P, SH, SH, O, O, O, SH, P, P] },
+  HERITAGE: { type: "HERITAGE", m: [P, P, SH, SH, O, O, SH, SH, SH, P, P, P] },
+  METRO: { type: "BUSINESS", m: [SH, P, P, SH, O, O, SH, SH, P, P, P, SH] },
+  ISLAND: { type: "ISLAND", m: [P, P, P, SH, O, O, O, O, SH, SH, P, P] },
+} satisfies Record<string, { type: string; m: S[] }>;
+
+type ArchKey = keyof typeof ARCH;
+
+interface StateDef {
   code: string;
   name: string;
   zone: string;
-  dominantType: string;
-  months: S[]; // Jan..Dec
+  def: ArchKey; // archetype for the "Rest of <state>" fallback
+  spots: [string, ArchKey][];
 }
 
-// Pan-India seasonal calendar. Calibrated so September (current month) has live
-// OFF regions (surplus) and PEAK regions (demand) to make the demo work today.
-const REGIONS: RegionSeed[] = [
-  {
-    code: "NORTH_HILLS",
-    name: "North Himalayan Hills (HP · Uttarakhand · J&K)",
-    zone: "NORTH",
-    dominantType: "MOUNTAIN",
-    months: ["OFF", "OFF", "SHOULDER", "PEAK", "PEAK", "PEAK", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "SHOULDER", "OFF"],
-  },
-  {
-    code: "RAJASTHAN",
-    name: "Rajasthan Desert (Jaisalmer · Jodhpur · Udaipur)",
-    zone: "WEST",
-    dominantType: "DESERT",
-    months: ["PEAK", "PEAK", "SHOULDER", "OFF", "OFF", "OFF", "OFF", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK"],
-  },
-  {
-    code: "GOA",
-    name: "Goa & Konkan Coast",
-    zone: "WEST",
-    dominantType: "BEACH",
-    months: ["PEAK", "PEAK", "SHOULDER", "SHOULDER", "OFF", "OFF", "OFF", "OFF", "OFF", "SHOULDER", "PEAK", "PEAK"],
-  },
-  {
-    code: "KERALA",
-    name: "Kerala Backwaters & Coast",
-    zone: "SOUTH",
-    dominantType: "BACKWATER",
-    months: ["PEAK", "PEAK", "SHOULDER", "SHOULDER", "OFF", "OFF", "OFF", "SHOULDER", "SHOULDER", "SHOULDER", "PEAK", "PEAK"],
-  },
-  {
-    code: "TN_HILLS_TEMPLE",
-    name: "Tamil Nadu Hills & Temples (Ooty · Madurai)",
-    zone: "SOUTH",
-    dominantType: "HILL_TEMPLE",
-    months: ["SHOULDER", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK", "SHOULDER", "SHOULDER", "SHOULDER", "SHOULDER", "SHOULDER", "PEAK"],
-  },
-  {
-    code: "BENGAL_SIKKIM_NE",
-    name: "Bengal · Sikkim · North-East (Darjeeling · Gangtok)",
-    zone: "NORTHEAST",
-    dominantType: "MOUNTAIN",
-    months: ["SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK", "SHOULDER", "OFF", "OFF", "SHOULDER", "PEAK", "PEAK", "SHOULDER"],
-  },
-  {
-    code: "ODISHA_PILGRIMAGE",
-    name: "Eastern Pilgrimage Circuit (Puri · Varanasi · Gaya)",
-    zone: "EAST",
-    dominantType: "PILGRIMAGE",
-    months: ["PEAK", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "SHOULDER", "PEAK", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK"],
-  },
-  {
-    code: "CENTRAL_WILDLIFE",
-    name: "Central Heritage & Wildlife (Khajuraho · Kanha)",
-    zone: "CENTRAL",
-    dominantType: "WILDLIFE",
-    months: ["PEAK", "PEAK", "PEAK", "PEAK", "SHOULDER", "SHOULDER", "OFF", "OFF", "OFF", "SHOULDER", "PEAK", "PEAK"],
-  },
-  {
-    code: "METRO",
-    name: "Metro Business Hubs (Delhi · Mumbai · Bengaluru)",
-    zone: "CENTRAL",
-    dominantType: "BUSINESS",
-    months: ["SHOULDER", "PEAK", "PEAK", "SHOULDER", "OFF", "OFF", "SHOULDER", "SHOULDER", "PEAK", "PEAK", "PEAK", "SHOULDER"],
-  },
+// Curated top hotspots per state/UT (+ a fallback so any town can onboard).
+const STATES: StateDef[] = [
+  // ---------------- NORTH ----------------
+  { code: "JK", name: "Jammu & Kashmir", zone: "NORTH", def: "HIMALAYAN", spots: [["Srinagar", "HIMALAYAN"], ["Gulmarg", "SKI"], ["Pahalgam", "HIMALAYAN"], ["Sonamarg", "HIMALAYAN"], ["Katra (Vaishno Devi)", "PILGRIMAGE"], ["Jammu", "HERITAGE"]] },
+  { code: "LA", name: "Ladakh", zone: "NORTH", def: "HIMALAYAN", spots: [["Leh", "HIMALAYAN"], ["Nubra Valley", "HIMALAYAN"], ["Pangong Tso", "HIMALAYAN"]] },
+  { code: "HP", name: "Himachal Pradesh", zone: "NORTH", def: "HIMALAYAN", spots: [["Shimla", "HIMALAYAN"], ["Manali", "HIMALAYAN"], ["Dharamshala", "HIMALAYAN"], ["Dalhousie", "HIMALAYAN"], ["Kasol", "HIMALAYAN"], ["Spiti Valley", "HIMALAYAN"]] },
+  { code: "UK", name: "Uttarakhand", zone: "NORTH", def: "HILL", spots: [["Nainital", "HILL"], ["Mussoorie", "HILL"], ["Rishikesh", "PILGRIMAGE"], ["Haridwar", "PILGRIMAGE"], ["Kedarnath (Char Dham)", "HIMALAYAN"], ["Jim Corbett", "WILDLIFE"], ["Auli", "SKI"]] },
+  { code: "PB", name: "Punjab", zone: "NORTH", def: "HERITAGE", spots: [["Amritsar", "PILGRIMAGE"], ["Ludhiana", "METRO"], ["Patiala", "HERITAGE"]] },
+  { code: "HR", name: "Haryana", zone: "NORTH", def: "HERITAGE", spots: [["Gurugram", "METRO"], ["Kurukshetra", "PILGRIMAGE"], ["Morni Hills", "HILL"]] },
+  { code: "CH", name: "Chandigarh", zone: "NORTH", def: "METRO", spots: [["Chandigarh", "METRO"]] },
+  { code: "DL", name: "Delhi", zone: "NORTH", def: "HERITAGE", spots: [["New Delhi", "HERITAGE"]] },
+  { code: "UP", name: "Uttar Pradesh", zone: "NORTH", def: "HERITAGE", spots: [["Agra", "HERITAGE"], ["Varanasi", "PILGRIMAGE"], ["Ayodhya", "PILGRIMAGE"], ["Mathura-Vrindavan", "PILGRIMAGE"], ["Lucknow", "HERITAGE"], ["Prayagraj", "PILGRIMAGE"]] },
+  // ---------------- WEST ----------------
+  { code: "RJ", name: "Rajasthan", zone: "WEST", def: "DESERT", spots: [["Jaisalmer", "DESERT"], ["Jodhpur", "DESERT"], ["Udaipur", "HERITAGE"], ["Jaipur", "HERITAGE"], ["Pushkar", "PILGRIMAGE"], ["Mount Abu", "HILL"], ["Ranthambore", "WILDLIFE"], ["Bikaner", "DESERT"]] },
+  { code: "GJ", name: "Gujarat", zone: "WEST", def: "HERITAGE", spots: [["Rann of Kutch", "DESERT"], ["Gir", "WILDLIFE"], ["Dwarka", "PILGRIMAGE"], ["Somnath", "PILGRIMAGE"], ["Saputara", "HILL"], ["Ahmedabad", "HERITAGE"], ["Kevadia (Statue of Unity)", "HERITAGE"]] },
+  { code: "GA", name: "Goa", zone: "WEST", def: "WEST_COAST", spots: [["North Goa", "WEST_COAST"], ["South Goa", "WEST_COAST"], ["Panaji", "WEST_COAST"]] },
+  { code: "MH", name: "Maharashtra", zone: "WEST", def: "HERITAGE", spots: [["Mumbai", "METRO"], ["Pune", "METRO"], ["Lonavala", "HILL"], ["Mahabaleshwar", "HILL"], ["Alibaug (Konkan)", "WEST_COAST"], ["Nashik", "HERITAGE"], ["Tadoba", "WILDLIFE"], ["Matheran", "HILL"]] },
+  { code: "DD", name: "Dadra & Nagar Haveli and Daman & Diu", zone: "WEST", def: "WEST_COAST", spots: [["Daman", "WEST_COAST"], ["Diu", "WEST_COAST"], ["Silvassa", "HERITAGE"]] },
+  // ---------------- SOUTH ----------------
+  { code: "KA", name: "Karnataka", zone: "SOUTH", def: "HERITAGE", spots: [["Bengaluru", "METRO"], ["Coorg (Madikeri)", "HILL"], ["Chikmagalur", "HILL"], ["Gokarna", "WEST_COAST"], ["Hampi", "HERITAGE"], ["Mysuru", "HERITAGE"]] },
+  { code: "KL", name: "Kerala", zone: "SOUTH", def: "BACKWATER", spots: [["Munnar", "HILL"], ["Alleppey", "BACKWATER"], ["Kochi", "BACKWATER"], ["Kovalam", "WEST_COAST"], ["Wayanad", "HILL"], ["Thekkady", "WILDLIFE"]] },
+  { code: "TN", name: "Tamil Nadu", zone: "SOUTH", def: "HERITAGE", spots: [["Ooty", "HILL"], ["Kodaikanal", "HILL"], ["Chennai", "METRO"], ["Madurai", "PILGRIMAGE"], ["Mahabalipuram", "EAST_COAST"], ["Rameswaram", "PILGRIMAGE"], ["Kanyakumari", "EAST_COAST"]] },
+  { code: "AP", name: "Andhra Pradesh", zone: "SOUTH", def: "HERITAGE", spots: [["Tirupati", "PILGRIMAGE"], ["Visakhapatnam", "EAST_COAST"], ["Araku Valley", "HILL"]] },
+  { code: "TG", name: "Telangana", zone: "SOUTH", def: "HERITAGE", spots: [["Hyderabad", "METRO"], ["Warangal", "HERITAGE"]] },
+  { code: "PY", name: "Puducherry", zone: "SOUTH", def: "EAST_COAST", spots: [["Puducherry", "EAST_COAST"]] },
+  // ---------------- EAST ----------------
+  { code: "BR", name: "Bihar", zone: "EAST", def: "PILGRIMAGE", spots: [["Bodh Gaya", "PILGRIMAGE"], ["Patna", "HERITAGE"], ["Nalanda", "HERITAGE"], ["Rajgir", "PILGRIMAGE"]] },
+  { code: "JH", name: "Jharkhand", zone: "EAST", def: "HILL", spots: [["Ranchi", "HILL"], ["Deoghar", "PILGRIMAGE"], ["Netarhat", "HILL"]] },
+  { code: "OD", name: "Odisha", zone: "EAST", def: "EAST_COAST", spots: [["Puri", "EAST_COAST"], ["Konark", "EAST_COAST"], ["Bhubaneswar", "HERITAGE"], ["Chilika", "EAST_COAST"]] },
+  { code: "WB", name: "West Bengal", zone: "EAST", def: "HERITAGE", spots: [["Darjeeling", "HIMALAYAN"], ["Kalimpong", "HIMALAYAN"], ["Digha", "EAST_COAST"], ["Sundarbans", "WILDLIFE"], ["Kolkata", "HERITAGE"]] },
+  // ---------------- CENTRAL ----------------
+  { code: "MP", name: "Madhya Pradesh", zone: "CENTRAL", def: "HERITAGE", spots: [["Khajuraho", "HERITAGE"], ["Kanha", "WILDLIFE"], ["Bandhavgarh", "WILDLIFE"], ["Pachmarhi", "HILL"], ["Gwalior", "HERITAGE"], ["Ujjain", "PILGRIMAGE"]] },
+  { code: "CG", name: "Chhattisgarh", zone: "CENTRAL", def: "HERITAGE", spots: [["Raipur", "HERITAGE"], ["Jagdalpur (Chitrakote)", "WILDLIFE"], ["Sirpur", "HERITAGE"]] },
+  // ---------------- NORTH-EAST ----------------
+  { code: "SK", name: "Sikkim", zone: "NORTHEAST", def: "HIMALAYAN", spots: [["Gangtok", "HIMALAYAN"], ["Pelling", "HIMALAYAN"], ["Lachung", "HIMALAYAN"]] },
+  { code: "AS", name: "Assam", zone: "NORTHEAST", def: "HERITAGE", spots: [["Kaziranga", "WILDLIFE"], ["Guwahati", "PILGRIMAGE"], ["Majuli", "HERITAGE"]] },
+  { code: "AR", name: "Arunachal Pradesh", zone: "NORTHEAST", def: "HIMALAYAN", spots: [["Tawang", "HIMALAYAN"], ["Ziro", "HILL"], ["Bomdila", "HIMALAYAN"]] },
+  { code: "NL", name: "Nagaland", zone: "NORTHEAST", def: "HILL", spots: [["Kohima", "HILL"], ["Dzukou Valley", "HILL"]] },
+  { code: "MN", name: "Manipur", zone: "NORTHEAST", def: "HILL", spots: [["Imphal", "HERITAGE"], ["Loktak Lake", "HILL"]] },
+  { code: "MZ", name: "Mizoram", zone: "NORTHEAST", def: "HILL", spots: [["Aizawl", "HILL"]] },
+  { code: "ML", name: "Meghalaya", zone: "NORTHEAST", def: "HILL", spots: [["Shillong", "HILL"], ["Cherrapunji", "HILL"], ["Dawki", "HILL"]] },
+  { code: "TR", name: "Tripura", zone: "NORTHEAST", def: "HERITAGE", spots: [["Agartala", "HERITAGE"], ["Unakoti", "HERITAGE"]] },
+  // ---------------- ISLANDS ----------------
+  { code: "AN", name: "Andaman & Nicobar Islands", zone: "ISLANDS", def: "ISLAND", spots: [["Port Blair", "ISLAND"], ["Havelock (Swaraj Dweep)", "ISLAND"], ["Neil Island", "ISLAND"]] },
+  { code: "LD", name: "Lakshadweep", zone: "ISLANDS", def: "ISLAND", spots: [["Agatti", "ISLAND"], ["Bangaram", "ISLAND"], ["Kavaratti", "ISLAND"]] },
 ];
 
 const ROLES = [
@@ -96,6 +98,8 @@ const ROLES = [
   { name: "Security Guard", category: "SECURITY" },
   { name: "Driver", category: "OTHER" },
 ];
+
+const slug = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
 
 async function wipe() {
   await prisma.rating.deleteMany();
@@ -119,16 +123,23 @@ async function wipe() {
 async function main() {
   await wipe();
 
-  // Regions + seasonal packs
+  // Regions = hotspots (+ a "Rest of <state>" fallback per state)
   const regionId: Record<string, string> = {};
-  for (const r of REGIONS) {
-    const region = await prisma.region.create({
-      data: { code: r.code, name: r.name, zone: r.zone, dominantType: r.dominantType },
-    });
-    regionId[r.code] = region.id;
-    await prisma.seasonalPack.createMany({
-      data: r.months.map((state, i) => ({ regionId: region.id, month: i + 1, state })),
-    });
+  let regionCount = 0;
+  for (const st of STATES) {
+    const entries: [string, ArchKey][] = [...st.spots, [`Rest of ${st.name}`, st.def]];
+    for (const [name, archKey] of entries) {
+      const arch = ARCH[archKey];
+      const code = name.startsWith("Rest of") ? `${st.code}-OTHER` : `${st.code}-${slug(name)}`;
+      const region = await prisma.region.create({
+        data: { code, name, state: st.name, zone: st.zone, dominantType: arch.type },
+      });
+      regionId[code] = region.id;
+      regionCount++;
+      await prisma.seasonalPack.createMany({
+        data: arch.m.map((state, i) => ({ regionId: region.id, month: i + 1, state })),
+      });
+    }
   }
 
   // Roles
@@ -138,7 +149,7 @@ async function main() {
     roleId[role.name] = created.id;
   }
 
-  // Revenue modules (subscription + commission ON by default; rest OFF)
+  // Revenue modules
   for (const m of REVENUE_MODULE_CATALOG) {
     await prisma.revenueModule.create({
       data: {
@@ -152,51 +163,22 @@ async function main() {
     });
   }
 
-  // Hotels
+  // Hotels — Panaji, Goa (off-season now) lends to Manali (peak now)
   const group = await prisma.hotelGroup.create({ data: { name: "Coast & Peaks Hospitality" } });
-
   const hotelA = await prisma.hotel.create({
-    data: {
-      name: "Sunset Sands Resort",
-      groupId: group.id,
-      regionId: regionId["GOA"],
-      city: "Panaji, Goa",
-      rooms: 42,
-      tier: "MID",
-    },
+    data: { name: "Sunset Sands Resort", groupId: group.id, regionId: regionId["GA-PANAJI"], city: "Panaji, Goa", rooms: 42, tier: "MID" },
   });
   const hotelB = await prisma.hotel.create({
-    data: {
-      name: "Himalayan Vista Inn",
-      groupId: group.id,
-      regionId: regionId["NORTH_HILLS"],
-      city: "Manali, Himachal Pradesh",
-      rooms: 34,
-      tier: "MID",
-    },
+    data: { name: "Himalayan Vista Inn", groupId: group.id, regionId: regionId["HP-MANALI"], city: "Manali, Himachal Pradesh", rooms: 34, tier: "MID" },
   });
   const hotelC = await prisma.hotel.create({
-    data: {
-      name: "Desert Pearl Haveli",
-      regionId: regionId["RAJASTHAN"],
-      city: "Jaisalmer, Rajasthan",
-      rooms: 22,
-      tier: "BUDGET",
-    },
+    data: { name: "Desert Pearl Haveli", regionId: regionId["RJ-JAISALMER"], city: "Jaisalmer, Rajasthan", rooms: 22, tier: "BUDGET" },
   });
 
-  // Subscriptions
-  await prisma.subscription.create({
-    data: { hotelId: hotelA.id, plan: "GROWTH", status: "ACTIVE", currentPeriodEnd: d(30) },
-  });
-  await prisma.subscription.create({
-    data: { hotelId: hotelB.id, plan: "STARTER", status: "ACTIVE", currentPeriodEnd: d(30) },
-  });
-  await prisma.subscription.create({
-    data: { hotelId: hotelC.id, plan: "FREE", status: "ACTIVE" },
-  });
+  await prisma.subscription.create({ data: { hotelId: hotelA.id, plan: "GROWTH", status: "ACTIVE", currentPeriodEnd: d(30) } });
+  await prisma.subscription.create({ data: { hotelId: hotelB.id, plan: "STARTER", status: "ACTIVE", currentPeriodEnd: d(30) } });
+  await prisma.subscription.create({ data: { hotelId: hotelC.id, plan: "FREE", status: "ACTIVE" } });
 
-  // Workers — all home at Hotel A (Goa), which is OFF-season now => prime to lend
   const workerSeed = [
     { name: "Ramesh Kumar", role: "Housekeeping", exp: 6, wage: 70000, rep: 4.6, kyc: "VERIFIED", skills: ["deep cleaning", "laundry"] },
     { name: "Suresh Naik", role: "Cook", exp: 8, wage: 120000, rep: 4.8, kyc: "VERIFIED", skills: ["north indian", "tandoor", "continental"] },
@@ -206,81 +188,48 @@ async function main() {
   ];
   const workers = [];
   for (const w of workerSeed) {
-    const worker = await prisma.worker.create({
-      data: {
-        name: w.name,
-        homeHotelId: hotelA.id,
-        primaryRoleId: roleId[w.role],
-        skillsJson: JSON.stringify(w.skills),
-        experienceYears: w.exp,
-        expectedWagePaise: w.wage,
-        reputationScore: w.rep,
-        ratingCount: Math.round(w.rep * 4),
-        kycStatus: w.kyc,
-        availabilityStatus: "AVAILABLE",
-        consentGiven: true,
-      },
-    });
-    workers.push(worker);
+    workers.push(
+      await prisma.worker.create({
+        data: {
+          name: w.name,
+          homeHotelId: hotelA.id,
+          primaryRoleId: roleId[w.role],
+          skillsJson: JSON.stringify(w.skills),
+          experienceYears: w.exp,
+          expectedWagePaise: w.wage,
+          reputationScore: w.rep,
+          ratingCount: Math.round(w.rep * 4),
+          kycStatus: w.kyc,
+          availabilityStatus: "AVAILABLE",
+          consentGiven: true,
+        },
+      }),
+    );
   }
 
-  // Users
-  await prisma.user.create({
-    data: { email: "admin@ht.test", passwordHash: PW, name: "Platform Admin", role: "PLATFORM_ADMIN" },
-  });
-  await prisma.user.create({
-    data: { email: "goa@ht.test", passwordHash: PW, name: "Goa GM (Sunset Sands)", role: "HOTELIER_ADMIN", hotelId: hotelA.id },
-  });
-  await prisma.user.create({
-    data: { email: "hills@ht.test", passwordHash: PW, name: "Manali GM (Himalayan Vista)", role: "HOTELIER_ADMIN", hotelId: hotelB.id },
-  });
-  await prisma.user.create({
-    data: { email: "raj@ht.test", passwordHash: PW, name: "Jaisalmer GM (Desert Pearl)", role: "HOTELIER_ADMIN", hotelId: hotelC.id },
-  });
-  await prisma.user.create({
-    data: { email: "worker@ht.test", passwordHash: PW, name: workers[0].name, role: "WORKER", workerId: workers[0].id },
-  });
+  await prisma.user.create({ data: { email: "admin@ht.test", passwordHash: PW, name: "Platform Admin", role: "PLATFORM_ADMIN" } });
+  await prisma.user.create({ data: { email: "goa@ht.test", passwordHash: PW, name: "Goa GM (Sunset Sands)", role: "HOTELIER_ADMIN", hotelId: hotelA.id } });
+  await prisma.user.create({ data: { email: "hills@ht.test", passwordHash: PW, name: "Manali GM (Himalayan Vista)", role: "HOTELIER_ADMIN", hotelId: hotelB.id } });
+  await prisma.user.create({ data: { email: "raj@ht.test", passwordHash: PW, name: "Jaisalmer GM (Desert Pearl)", role: "HOTELIER_ADMIN", hotelId: hotelC.id } });
+  await prisma.user.create({ data: { email: "worker@ht.test", passwordHash: PW, name: workers[0].name, role: "WORKER", workerId: workers[0].id } });
 
-  // Declarations — A is SURPLUS (Goa off-season), B is DEMAND (Himalayas peak)
   await prisma.seasonDeclaration.create({
-    data: {
-      hotelId: hotelA.id, type: "SURPLUS", roleId: roleId["Housekeeping"], headcount: 3,
-      startDate: d(7), endDate: d(97), wageOfferPaise: 70000, housingProvided: true,
-      note: "Off-season surplus — trained coastal housekeeping available to lend.",
-    },
+    data: { hotelId: hotelA.id, type: "SURPLUS", roleId: roleId["Housekeeping"], headcount: 3, startDate: d(7), endDate: d(97), wageOfferPaise: 70000, housingProvided: true, note: "Off-season surplus — trained coastal housekeeping available to lend." },
   });
   await prisma.seasonDeclaration.create({
-    data: {
-      hotelId: hotelA.id, type: "SURPLUS", roleId: roleId["Cook"], headcount: 1,
-      startDate: d(7), endDate: d(97), wageOfferPaise: 120000, housingProvided: true,
-      note: "Experienced multi-cuisine cook available during monsoon lull.",
-    },
+    data: { hotelId: hotelA.id, type: "SURPLUS", roleId: roleId["Cook"], headcount: 1, startDate: d(7), endDate: d(97), wageOfferPaise: 120000, housingProvided: true, note: "Experienced multi-cuisine cook available during monsoon lull." },
   });
   await prisma.seasonDeclaration.create({
-    data: {
-      hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Housekeeping"], headcount: 2,
-      startDate: d(14), endDate: d(104), wageOfferPaise: 90000, housingProvided: true,
-      note: "Autumn peak — need experienced housekeeping, staff quarters provided.",
-    },
+    data: { hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Housekeeping"], headcount: 2, startDate: d(14), endDate: d(104), wageOfferPaise: 90000, housingProvided: true, note: "Autumn peak — need experienced housekeeping, staff quarters provided." },
   });
   await prisma.seasonDeclaration.create({
-    data: {
-      hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Cook"], headcount: 1,
-      startDate: d(14), endDate: d(104), wageOfferPaise: 130000, housingProvided: true,
-      note: "Peak-season kitchen support needed.",
-    },
+    data: { hotelId: hotelB.id, type: "DEMAND", roleId: roleId["Cook"], headcount: 1, startDate: d(14), endDate: d(104), wageOfferPaise: 130000, housingProvided: true, note: "Peak-season kitchen support needed." },
   });
 
   console.log("Seed complete:");
-  console.log(`  ${REGIONS.length} regions × 12 seasonal packs`);
-  console.log(`  ${ROLES.length} roles, ${REVENUE_MODULE_CATALOG.length} revenue modules`);
-  console.log(`  3 hotels, ${workers.length} workers, 4 declarations`);
-  console.log("\nDemo logins (password: password123):");
-  console.log("  admin@ht.test   — platform admin");
-  console.log("  goa@ht.test     — Sunset Sands Resort, Goa (SURPLUS, off-season)");
-  console.log("  hills@ht.test   — Himalayan Vista Inn, Manali (DEMAND, peak)");
-  console.log("  raj@ht.test     — Desert Pearl Haveli, Jaisalmer");
-  console.log("  worker@ht.test  — worker (Ramesh Kumar)");
+  console.log(`  ${regionCount} hotspots across ${STATES.length} states/UTs × 12 seasonal packs`);
+  console.log(`  ${ROLES.length} roles, ${REVENUE_MODULE_CATALOG.length} revenue modules, 3 hotels, ${workers.length} workers`);
+  console.log("\nDemo logins (password: password123): admin@ / goa@ / hills@ / raj@ / worker@ht.test");
 }
 
 main()

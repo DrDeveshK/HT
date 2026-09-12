@@ -30,12 +30,19 @@ async function main() {
 
   const checks: [string, string, string][] = [
     ["/hotel", hills, "Welcome, Himalayan Vista Inn"],
+    ["/hotel", hills, "Lakshadweep"], // island UT present in map
+    ["/hotel", hills, "Mount Abu"], // within-state hotspot (summer hill in Rajasthan)
+    ["/hotel", hills, "Jaisalmer"], // within-state hotspot (winter desert in Rajasthan)
     ["/hotel/marketplace", hills, "Sunset Sands Resort"], // borrower sees Goa surplus
     ["/hotel/declarations", goa, "Your declarations"],
     ["/hotel/subscription", goa, "Growth"],
     ["/admin", admin, "Platform overview"],
     ["/admin/revenue", admin, "Deputation commission"],
-    ["/admin/seasons", admin, "Seasonal calendar"],
+    ["/admin/seasons", admin, "Click a state to expand"],
+    ["/admin", admin, "MRR"],
+    ["/admin/workers", admin, "talent pool"],
+    ["/admin/deputations", admin, "in progress"],
+    ["/admin/revenue", admin, "Revenue to date"],
     ["/worker", worker, "Your deputations"],
   ];
 
