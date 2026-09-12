@@ -58,6 +58,10 @@ async function main() {
     ["/hotel/marketplace", hills, "Your rehire shortlist"],
     ["/worker", worker, "Employer rating"],
     ["/worker", worker, "Rate this hotel"],
+    // M5
+    ["/admin/disputes", admin, "heating"],
+    ["/worker", worker, "Welcome to HT"],
+    ["/worker", worker, "Messages ("],
   ];
 
   let ok = true;
@@ -86,7 +90,7 @@ async function main() {
   const neg = await prisma.deputation.findFirst({ where: { state: "NEGOTIATING" } });
   if (neg) {
     const dm = await get(`/hotel/deputations/${neg.id}`, hills); // demand hotel can accept
-    const okDm = dm.status === 200 && dm.body.includes("Negotiation") && dm.body.includes("Accept these terms");
+    const okDm = dm.status === 200 && dm.body.includes("Negotiation") && dm.body.includes("Accept these terms") && dm.body.includes("start a week earlier");
     console.log(`/deputations/:id (host)  ${dm.status} ${okDm ? "✓" : "✗ MISSING"} accept offer`);
     const hm = await get(`/hotel/deputations/${neg.id}`, goa); // home hotel can counter
     const okHm = hm.status === 200 && hm.body.includes("Send counter-offer");

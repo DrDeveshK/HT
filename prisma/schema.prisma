@@ -26,6 +26,8 @@ model User {
   workerId      String?        @unique
   worker        Worker?        @relation(fields: [workerId], references: [id])
   notifications Notification[]
+  sentMessages  Message[]
+  disputes      Dispute[]
   createdAt     DateTime       @default(now())
 }
 
@@ -187,6 +189,7 @@ model Deputation {
   ledgerEntries LedgerEntry[]
   ratings       Rating[]
   offers        Offer[]
+  disputes      Dispute[]
 }
 
 model Agreement {
@@ -335,6 +338,32 @@ model Offer {
   note            String?
   status          String     @default("PROPOSED") // PROPOSED | COUNTERED | ACCEPTED | REJECTED | WITHDRAWN
   createdAt       DateTime   @default(now())
+}
+
+// ---------------- M5: messaging & disputes ----------------
+model Message {
+  id         String    @id @default(cuid())
+  threadKey  String // deputation id
+  fromUserId String
+  fromUser   User      @relation(fields: [fromUserId], references: [id])
+  body       String
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([threadKey])
+}
+
+model Dispute {
+  id             String     @id @default(cuid())
+  deputationId   String
+  deputation     Deputation @relation(fields: [deputationId], references: [id])
+  raisedByUserId String
+  raisedBy       User       @relation(fields: [raisedByUserId], references: [id])
+  category       String // WAGE | CONDUCT | HOUSING | SAFETY | OTHER
+  description    String
+  status         String     @default("OPEN") // OPEN | RESOLVED | REJECTED
+  resolutionNote String?
+  createdAt      DateTime   @default(now())
 }
 
 // ---------------- M3: one-click rehire shortlist ----------------

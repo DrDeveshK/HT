@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { AppShell, type NavItem } from "@/components/AppShell";
+import { NotificationBell } from "@/components/NotificationBell";
 import { SeasonPill } from "@/components/ui";
 import { loadSeasonContext } from "@/lib/seasonal-data";
 
@@ -24,6 +25,7 @@ export default async function HotelLayout({ children }: { children: React.ReactN
       userName={hotel.name}
       userMeta={hotel.city}
       headerRight={<SeasonPill state={stateOf(hotel.regionId)} />}
+      bell={<NotificationBell userId={user.id} />}
     >
       {children}
     </AppShell>

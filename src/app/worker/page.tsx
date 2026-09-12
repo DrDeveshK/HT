@@ -5,9 +5,10 @@ import { daysBetween } from "@/lib/fees";
 import Link from "next/link";
 import { setAvailability } from "@/actions/worker";
 import { submitRating } from "@/actions/deputations";
+import { sendMessage } from "@/actions/messages";
 import { overallFromDims } from "@/core/reputation";
 import { SubmitButton } from "@/components/SubmitButton";
-import { PageHeader, Card, CardHeader, Stat, SeasonPill, StateBadge, Badge, EmptyState, Stars, Select } from "@/components/ui";
+import { PageHeader, Card, CardHeader, Stat, SeasonPill, StateBadge, Badge, EmptyState, Stars, Select, Textarea } from "@/components/ui";
 import { formatINR, formatDate, HOTEL_RATING_DIMENSIONS } from "@/lib/constants";
 
 export default async function WorkerHome() {
@@ -21,6 +22,17 @@ export default async function WorkerHome() {
     include: { demandHotel: { include: { region: true } }, role: true, ratings: true },
     orderBy: { updatedAt: "desc" },
   });
+  const msgs = await prisma.message.findMany({
+    where: { threadKey: { in: deps.map((d) => d.id) } },
+    include: { fromUser: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const msgsByDep = new Map<string, typeof msgs>();
+  for (const m of msgs) {
+    const arr = msgsByDep.get(m.threadKey) ?? [];
+    arr.push(m);
+    msgsByDep.set(m.threadKey, arr);
+  }
 
   const skills = (() => {
     try {
@@ -161,6 +173,24 @@ export default async function WorkerHome() {
                           </form>
                         </details>
                       )}
+                      <details className="mt-3">
+                        <summary className="cursor-pointer text-sm font-medium text-brand-600">
+                          Messages ({(msgsByDep.get(d.id) ?? []).length})
+                        </summary>
+                        <div className="mt-2 space-y-2">
+                          {(msgsByDep.get(d.id) ?? []).map((m) => (
+                            <div key={m.id} className={`rounded-md border border-slate-200 p-2 text-sm ${m.fromUserId === user.id ? "bg-brand-50/40" : ""}`}>
+                              <span className="text-xs font-medium text-slate-600">{m.fromUser.name}</span>
+                              <p className="text-slate-700">{m.body}</p>
+                            </div>
+                          ))}
+                          <form action={sendMessage} className="flex items-end gap-2">
+                            <input type="hidden" name="threadKey" value={d.id} />
+                            <Textarea name="body" rows={1} placeholder="Message…" className="flex-1" />
+                            <SubmitButton size="sm" pendingText="…">Send</SubmitButton>
+                          </form>
+                        </div>
+                      </details>
                     </div>
                   );
                 })}

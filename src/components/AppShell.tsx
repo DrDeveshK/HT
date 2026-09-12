@@ -14,6 +14,7 @@ export function AppShell({
   userName,
   userMeta,
   headerRight,
+  bell,
   children,
 }: {
   section: string;
@@ -21,6 +22,7 @@ export function AppShell({
   userName: string;
   userMeta?: string;
   headerRight?: React.ReactNode;
+  bell?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -35,6 +37,7 @@ export function AppShell({
           </div>
           <div className="flex items-center gap-3">
             {headerRight}
+            {bell}
             <div className="hidden text-right sm:block">
               <p className="text-sm font-medium text-slate-800">{userName}</p>
               {userMeta && <p className="text-xs text-slate-500">{userMeta}</p>}
