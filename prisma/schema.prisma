@@ -33,9 +33,10 @@ model User {
 model Region {
   id           String         @id @default(cuid())
   code         String         @unique
-  name         String
-  zone         String // NORTH | SOUTH | EAST | WEST | CENTRAL | NORTHEAST
-  dominantType String // MOUNTAIN | BEACH | DESERT | BACKWATER | PILGRIMAGE | WILDLIFE | BUSINESS | HILL_TEMPLE
+  name         String // hotspot / destination name, e.g. "Manali"
+  state        String // parent state / UT, e.g. "Himachal Pradesh"
+  zone         String // NORTH | SOUTH | EAST | WEST | CENTRAL | NORTHEAST | ISLANDS
+  dominantType String // MOUNTAIN | BEACH | DESERT | BACKWATER | PILGRIMAGE | WILDLIFE | BUSINESS | HILL | HERITAGE | ISLAND
   hotels       Hotel[]
   packs        SeasonalPack[]
 }

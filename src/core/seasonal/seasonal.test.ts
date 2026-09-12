@@ -7,8 +7,8 @@ import {
   type RegionPack,
 } from "./index";
 
-const goa: RegionLike = { id: "goa", code: "GOA", name: "Goa", zone: "WEST", dominantType: "BEACH" };
-const hills: RegionLike = { id: "hills", code: "HP", name: "Himachal Hills", zone: "NORTH", dominantType: "MOUNTAIN" };
+const goa: RegionLike = { id: "goa", code: "GOA", name: "Goa", state: "Goa", zone: "WEST", dominantType: "BEACH" };
+const hills: RegionLike = { id: "hills", code: "HP", name: "Himachal Hills", state: "Himachal Pradesh", zone: "NORTH", dominantType: "MOUNTAIN" };
 
 const packs: RegionPack[] = [
   { regionId: "goa", month: 7, state: "OFF" }, // monsoon

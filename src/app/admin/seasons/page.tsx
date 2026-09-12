@@ -34,7 +34,10 @@ export default async function AdminSeasons() {
           <tbody>
             {regions.map((r) => (
               <tr key={r.id}>
-                <td className="whitespace-nowrap p-2 text-slate-700">{r.name.split("(")[0].trim()}</td>
+                <td className="whitespace-nowrap p-2 text-slate-700">
+                  {r.name.split("(")[0].trim()}
+                  <span className="ml-1 text-slate-400">· {r.state}</span>
+                </td>
                 {MONTHS.map((_, i) => {
                   const st = map[r.id]?.[i + 1] ?? "SHOULDER";
                   const s = SEASON_STATE_STYLE[st];
