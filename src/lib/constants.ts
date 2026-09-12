@@ -44,6 +44,13 @@ export type OfferStatus = (typeof OFFER_STATUSES)[number];
 export const OFFER_PARTIES = ["DEMAND_HOTEL", "HOME_HOTEL", "WORKER"] as const;
 export type OfferParty = (typeof OFFER_PARTIES)[number];
 
+// ---- Disputes (M5) ----
+export const DISPUTE_CATEGORIES = ["WAGE", "CONDUCT", "HOUSING", "SAFETY", "OTHER"] as const;
+export type DisputeCategory = (typeof DISPUTE_CATEGORIES)[number];
+
+export const DISPUTE_STATUSES = ["OPEN", "RESOLVED", "REJECTED"] as const;
+export type DisputeStatus = (typeof DISPUTE_STATUSES)[number];
+
 export const SUBSCRIPTION_PLANS = ["FREE", "STARTER", "GROWTH", "ENTERPRISE"] as const;
 export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
 

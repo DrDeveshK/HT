@@ -3,13 +3,15 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { transitionDeputation, submitRating, makeCounterOffer, acceptOffer, rejectOffer, withdrawOffer } from "@/actions/deputations";
+import { sendMessage } from "@/actions/messages";
+import { raiseDispute } from "@/actions/disputes";
 import { computeDeputationCharges, daysBetween } from "@/lib/fees";
 import { loadSeasonContext } from "@/lib/seasonal-data";
 import { actionsFor, type Actor } from "@/core/deputation/stateMachine";
 import { suggestFairWage } from "@/core/pricing";
 import { SubmitButton } from "@/components/SubmitButton";
-import { PageHeader, Card, CardHeader, StateBadge, Stat, Table, Th, Td, Select, Stars, Badge, Input } from "@/components/ui";
-import { formatINR, formatDate, WORKER_RATING_DIMENSIONS, HOTEL_RATING_DIMENSIONS, type RatingDimension, type DeputationState } from "@/lib/constants";
+import { PageHeader, Card, CardHeader, StateBadge, Stat, Table, Th, Td, Select, Stars, Badge, Input, Textarea } from "@/components/ui";
+import { formatINR, formatDate, DISPUTE_CATEGORIES, WORKER_RATING_DIMENSIONS, HOTEL_RATING_DIMENSIONS, type RatingDimension, type DeputationState } from "@/lib/constants";
 
 export default async function DeputationDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,6 +27,7 @@ export default async function DeputationDetail({ params }: { params: Promise<{ i
       ledgerEntries: true,
       ratings: { include: { targetWorker: true, targetHotel: true } },
       offers: { orderBy: { createdAt: "asc" } },
+      disputes: { include: { raisedBy: true }, orderBy: { createdAt: "desc" } },
     },
   });
   if (!dep) notFound();
@@ -73,6 +76,11 @@ export default async function DeputationDetail({ params }: { params: Promise<{ i
   const fair = suggestFairWage({
     baseWagePaise: dep.worker.expectedWagePaise || dep.wagePerDayPaise,
     demandSeason: stateOf(dep.demandHotel.regionId),
+  });
+  const messages = await prisma.message.findMany({
+    where: { threadKey: id },
+    include: { fromUser: true },
+    orderBy: { createdAt: "asc" },
   });
 
   return (
@@ -243,6 +251,65 @@ export default async function DeputationDetail({ params }: { params: Promise<{ i
               </div>
             </Card>
           )}
+
+          <Card>
+            <CardHeader title="Messages" subtitle="Coordinate travel, housing and logistics." />
+            <div className="space-y-3 p-5">
+              {messages.length === 0 ? (
+                <p className="text-sm text-slate-400">No messages yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {messages.map((m) => (
+                    <li key={m.id} className={`rounded-lg border border-slate-200 p-3 ${m.fromUserId === user.id ? "bg-brand-50/40" : ""}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-600">{m.fromUser.name}</span>
+                        <span className="text-[10px] text-slate-400">{formatDate(m.createdAt)}</span>
+                      </div>
+                      <p className="text-sm text-slate-700">{m.body}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form action={sendMessage} className="flex items-end gap-2">
+                <input type="hidden" name="threadKey" value={dep.id} />
+                <Textarea name="body" rows={2} placeholder="Write a message…" className="flex-1" />
+                <SubmitButton size="sm" pendingText="Sending…">Send</SubmitButton>
+              </form>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Disputes" subtitle="Raise an issue for the platform to resolve." />
+            <div className="space-y-3 p-5">
+              {dep.disputes.length > 0 && (
+                <ul className="space-y-2">
+                  {dep.disputes.map((d) => (
+                    <li key={d.id} className="rounded-lg border border-slate-200 p-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={d.status === "OPEN" ? "amber" : d.status === "RESOLVED" ? "green" : "slate"}>{d.status}</Badge>
+                        <span className="text-slate-500">{d.category}</span>
+                        <span className="ml-auto text-[10px] text-slate-400">{d.raisedBy.name}</span>
+                      </div>
+                      <p className="mt-1 text-slate-700">{d.description}</p>
+                      {d.resolutionNote && <p className="mt-1 text-xs text-slate-500">Resolution: {d.resolutionNote}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {actor !== "PLATFORM" && (
+                <form action={raiseDispute} className="space-y-2 border-t border-slate-100 pt-3">
+                  <input type="hidden" name="deputationId" value={dep.id} />
+                  <Select name="category" defaultValue="OTHER" className="w-40">
+                    {DISPUTE_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </Select>
+                  <Textarea name="description" rows={2} placeholder="Describe the issue…" />
+                  <SubmitButton size="sm" variant="secondary" pendingText="Submitting…">Raise dispute</SubmitButton>
+                </form>
+              )}
+            </div>
+          </Card>
         </div>
 
         <Card className="h-fit">

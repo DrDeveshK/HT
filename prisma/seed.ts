@@ -287,10 +287,10 @@ async function main() {
   }
 
   await prisma.user.create({ data: { email: "admin@ht.test", passwordHash: PW, name: "Platform Admin", role: "PLATFORM_ADMIN" } });
-  await prisma.user.create({ data: { email: "goa@ht.test", passwordHash: PW, name: "Goa GM (Sunset Sands)", role: "HOTELIER_ADMIN", hotelId: hotelA.id } });
-  await prisma.user.create({ data: { email: "hills@ht.test", passwordHash: PW, name: "Manali GM (Himalayan Vista)", role: "HOTELIER_ADMIN", hotelId: hotelB.id } });
+  const goaUser = await prisma.user.create({ data: { email: "goa@ht.test", passwordHash: PW, name: "Goa GM (Sunset Sands)", role: "HOTELIER_ADMIN", hotelId: hotelA.id } });
+  const hillsUser = await prisma.user.create({ data: { email: "hills@ht.test", passwordHash: PW, name: "Manali GM (Himalayan Vista)", role: "HOTELIER_ADMIN", hotelId: hotelB.id } });
   await prisma.user.create({ data: { email: "raj@ht.test", passwordHash: PW, name: "Jaisalmer GM (Desert Pearl)", role: "HOTELIER_ADMIN", hotelId: hotelC.id } });
-  await prisma.user.create({ data: { email: "worker@ht.test", passwordHash: PW, name: workers[0].name, role: "WORKER", workerId: workers[0].id } });
+  const workerUser = await prisma.user.create({ data: { email: "worker@ht.test", passwordHash: PW, name: workers[0].name, role: "WORKER", workerId: workers[0].id } });
 
   await prisma.seasonDeclaration.create({
     data: { hotelId: hotelA.id, type: "SURPLUS", roleId: roleId["Housekeeping"], headcount: 3, startDate: d(7), endDate: d(97), wageOfferPaise: 70000, housingProvided: true, note: "Off-season surplus — trained coastal housekeeping available to lend." },
@@ -374,6 +374,15 @@ async function main() {
   await prisma.offer.create({
     data: { deputationId: negDep.id, byParty: "HOME_HOTEL", wagePerDayPaise: 105000, startDate: d(14), endDate: d(104), housingProvided: true, status: "PROPOSED", note: "Peak-season rate for our trained staff" },
   });
+
+  // ---------------- M5 demo: messages, a dispute, notifications ----------------
+  await prisma.message.create({ data: { threadKey: negDep.id, fromUserId: hillsUser.id, body: "Can your team start a week earlier for the autumn rush?" } });
+  await prisma.message.create({ data: { threadKey: negDep.id, fromUserId: goaUser.id, body: "Yes — we can arrange travel for the 10th." } });
+  await prisma.dispute.create({
+    data: { deputationId: negDep.id, raisedByUserId: goaUser.id, category: "HOUSING", description: "Please confirm staff quarters have heating for the winter posting.", status: "OPEN" },
+  });
+  await prisma.notification.create({ data: { recipientUserId: hillsUser.id, title: "New counter-offer", body: "Home hotel proposed ₹1,050/day." } });
+  await prisma.notification.create({ data: { recipientUserId: workerUser.id, title: "Welcome to HT", body: "Your reputation is now visible to hotels across India." } });
 
   console.log("Seed complete:");
   console.log(`  ${regionCount} hotspots across ${STATES.length} states/UTs × 12 seasonal packs`);

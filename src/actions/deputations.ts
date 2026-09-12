@@ -7,6 +7,7 @@ import { requireUser, type CurrentUser } from "@/lib/auth";
 import { canTransition, actionsFor, type Actor } from "@/core/deputation/stateMachine";
 import { writeDeputationLedger } from "@/lib/fees";
 import { recomputeWorkerReputation, recomputeHotelReputation } from "@/lib/reputation";
+import { notify, deputationRecipients, audit } from "@/lib/notify";
 import { WORKER_RATING_DIMENSIONS, HOTEL_RATING_DIMENSIONS } from "@/lib/constants";
 import type { DeputationState, RaterRole } from "@/lib/constants";
 
@@ -99,7 +100,12 @@ export async function transitionDeputation(formData: FormData) {
         homeSignedAt: new Date(),
         demandSignedAt: new Date(),
         workerConsentAt: new Date(),
-        termsJson: JSON.stringify({ wagePerDayPaise: dep.wagePerDayPaise }),
+        termsJson: JSON.stringify({
+          wagePerDayPaise: dep.wagePerDayPaise,
+          housingProvided: dep.housingProvided,
+          conduct: "Follow the host hotel's brand standards and code of conduct.",
+          cancellation: "7 days' notice; wages due for days already worked.",
+        }),
       },
       update: { eSignStatus: "SIGNED", homeSignedAt: new Date(), demandSignedAt: new Date() },
     });
@@ -110,6 +116,9 @@ export async function transitionDeputation(formData: FormData) {
   if (to === "RETURNED" || to === "CANCELLED") {
     await prisma.worker.update({ where: { id: dep.workerId }, data: { availabilityStatus: "AVAILABLE" } });
   }
+
+  await audit(user.id, `DEP_${to}`, "Deputation", id);
+  await notify(await deputationRecipients(dep, user.id), `Deputation ${to.replace("_", " ").toLowerCase()}`, `Status is now ${to}.`);
 
   revalidatePath(`/hotel/deputations/${id}`);
   revalidatePath("/hotel/deputations");
@@ -201,7 +210,13 @@ export async function makeCounterOffer(formData: FormData) {
   });
   if (dep.state === "REQUESTED") await prisma.deputation.update({ where: { id }, data: { state: "NEGOTIATING" } });
 
+  await notify(await deputationRecipients(dep, user.id), "New counter-offer", `${offerPartyLabel(actor)} proposed ₹${Math.round(wagePerDayPaise / 100)}/day.`);
+
   revalidatePath(`/hotel/deputations/${id}`);
+}
+
+function offerPartyLabel(p: string): string {
+  return p === "HOME_HOTEL" ? "Home hotel" : p === "DEMAND_HOTEL" ? "Host hotel" : "Worker";
 }
 
 export async function acceptOffer(formData: FormData) {
@@ -233,6 +248,9 @@ export async function acceptOffer(formData: FormData) {
       state: "ACCEPTED",
     },
   });
+
+  await audit(user.id, "OFFER_ACCEPTED", "Deputation", id, { wagePerDayPaise: offer.wagePerDayPaise });
+  await notify(await deputationRecipients(dep, user.id), "Offer accepted", "Terms agreed — the deputation is confirmed.");
 
   revalidatePath(`/hotel/deputations/${id}`);
   revalidatePath("/hotel/deputations");
