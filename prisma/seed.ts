@@ -99,9 +99,52 @@ const ROLES = [
   { name: "Driver", category: "OTHER" },
 ];
 
+const SKILLS = [
+  { name: "Deep Cleaning", category: "HOUSEKEEPING" },
+  { name: "Laundry", category: "HOUSEKEEPING" },
+  { name: "Turndown Service", category: "HOUSEKEEPING" },
+  { name: "Banquet Service", category: "FNB" },
+  { name: "Room Service", category: "FNB" },
+  { name: "Bartending", category: "FNB" },
+  { name: "Silver Service", category: "FNB" },
+  { name: "North Indian Cuisine", category: "KITCHEN" },
+  { name: "South Indian Cuisine", category: "KITCHEN" },
+  { name: "Tandoor", category: "KITCHEN" },
+  { name: "Continental Cuisine", category: "KITCHEN" },
+  { name: "Chinese Cuisine", category: "KITCHEN" },
+  { name: "Bakery & Pastry", category: "KITCHEN" },
+  { name: "Reservations", category: "FRONT_OFFICE" },
+  { name: "Guest Relations", category: "FRONT_OFFICE" },
+  { name: "Concierge", category: "FRONT_OFFICE" },
+  { name: "Spa Therapy", category: "WELLNESS" },
+  { name: "Ayurveda", category: "WELLNESS" },
+  { name: "Electrical", category: "MAINTENANCE" },
+  { name: "Plumbing", category: "MAINTENANCE" },
+  { name: "HVAC", category: "MAINTENANCE" },
+  { name: "CCTV Monitoring", category: "SECURITY" },
+  { name: "Driving", category: "OTHER" },
+  { name: "Multilingual (English/Hindi)", category: "OTHER" },
+];
+
+const AMENITIES = [
+  "Swimming Pool", "Spa", "Multi-cuisine Restaurant", "Bar", "Banquet Hall",
+  "Gym", "Parking", "Wi-Fi", "Room Service", "Conference Hall", "Staff Quarters",
+];
+
+const PLANS = [
+  { key: "FREE", name: "Free", pricePaise: 0, blurb: "Browse the national map + list surplus staff.", featuresJson: JSON.stringify(["National seasonal map", "List up to 1 surplus declaration", "Community support"]), sortOrder: 1 },
+  { key: "STARTER", name: "Starter", pricePaise: 249900, blurb: "For a single budget/mid property.", featuresJson: JSON.stringify(["Unlimited declarations", "Matching + deputations", "Two-way ratings", "Email support"]), sortOrder: 2 },
+  { key: "GROWTH", name: "Growth", pricePaise: 599900, blurb: "For busy properties in strong corridors.", featuresJson: JSON.stringify(["Everything in Starter", "Priority matching", "Corridor analytics", "Managed-payroll add-on"]), sortOrder: 3 },
+  { key: "ENTERPRISE", name: "Enterprise", pricePaise: 1499900, blurb: "For groups & chains redeploying at scale.", featuresJson: JSON.stringify(["Everything in Growth", "Multi-property group console", "API access", "Dedicated success manager"]), sortOrder: 4 },
+];
+
 const slug = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
 
 async function wipe() {
+  await prisma.skill.deleteMany();
+  await prisma.amenity.deleteMany();
+  await prisma.plan.deleteMany();
+  await prisma.platformSetting.deleteMany();
   await prisma.rating.deleteMany();
   await prisma.ledgerEntry.deleteMany();
   await prisma.agreement.deleteMany();
@@ -162,6 +205,11 @@ async function main() {
       },
     });
   }
+
+  // Admin-managed taxonomy (M1)
+  await prisma.skill.createMany({ data: SKILLS });
+  await prisma.amenity.createMany({ data: AMENITIES.map((name) => ({ name })) });
+  await prisma.plan.createMany({ data: PLANS });
 
   // Hotels — Panaji, Goa (off-season now) lends to Manali (peak now)
   const group = await prisma.hotelGroup.create({ data: { name: "Coast & Peaks Hospitality" } });

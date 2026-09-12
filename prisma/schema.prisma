@@ -100,6 +100,7 @@ model Role {
   id           String              @id @default(cuid())
   name         String              @unique
   category     String // HOUSEKEEPING | FNB | FRONT_OFFICE | KITCHEN | MAINTENANCE | WELLNESS | SECURITY | OTHER
+  active       Boolean             @default(true)
   workers      Worker[]
   declarations SeasonDeclaration[]
   deputations  Deputation[]
@@ -243,4 +244,36 @@ model AuditLog {
   entityId    String?
   metaJson    String?
   createdAt   DateTime @default(now())
+}
+
+// ---------------- Admin-managed taxonomy & config (M1) ----------------
+model Skill {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  category  String // grouping, aligns with Role categories
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Amenity {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  active Boolean @default(true)
+}
+
+model Plan {
+  id           String  @id @default(cuid())
+  key          String  @unique // FREE | STARTER | GROWTH | ENTERPRISE | custom
+  name         String
+  pricePaise   Int     @default(0)
+  blurb        String?
+  featuresJson String  @default("[]")
+  sortOrder    Int     @default(0)
+  active       Boolean @default(true)
+}
+
+model PlatformSetting {
+  key       String   @id
+  valueJson String   @default("{}")
+  updatedAt DateTime @updatedAt
 }
