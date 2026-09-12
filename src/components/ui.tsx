@@ -151,6 +151,7 @@ export function SeasonPill({ state }: { state: SeasonState }) {
 
 const DEP_STATE_TONE: Record<string, Tone> = {
   REQUESTED: "slate",
+  NEGOTIATING: "amber",
   ACCEPTED: "blue",
   AGREED: "indigo",
   IN_TRANSIT: "amber",

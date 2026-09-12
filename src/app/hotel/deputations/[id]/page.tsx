@@ -2,11 +2,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { transitionDeputation, submitRating } from "@/actions/deputations";
+import { transitionDeputation, submitRating, makeCounterOffer, acceptOffer, rejectOffer, withdrawOffer } from "@/actions/deputations";
 import { computeDeputationCharges, daysBetween } from "@/lib/fees";
+import { loadSeasonContext } from "@/lib/seasonal-data";
 import { actionsFor, type Actor } from "@/core/deputation/stateMachine";
+import { suggestFairWage } from "@/core/pricing";
 import { SubmitButton } from "@/components/SubmitButton";
-import { PageHeader, Card, CardHeader, StateBadge, Stat, Table, Th, Td, Select, Stars } from "@/components/ui";
+import { PageHeader, Card, CardHeader, StateBadge, Stat, Table, Th, Td, Select, Stars, Badge, Input } from "@/components/ui";
 import { formatINR, formatDate, WORKER_RATING_DIMENSIONS, HOTEL_RATING_DIMENSIONS, type RatingDimension, type DeputationState } from "@/lib/constants";
 
 export default async function DeputationDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -22,6 +24,7 @@ export default async function DeputationDetail({ params }: { params: Promise<{ i
       agreement: true,
       ledgerEntries: true,
       ratings: { include: { targetWorker: true, targetHotel: true } },
+      offers: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!dep) notFound();
@@ -52,6 +55,25 @@ export default async function DeputationDetail({ params }: { params: Promise<{ i
   });
   const locked = dep.ledgerEntries.length > 0;
   const canRate = state === "COMPLETED" || state === "RETURNED";
+
+  // Negotiation (M4): per-offer fee previews + fair-wage guidance.
+  const offers = dep.offers;
+  const previews = await Promise.all(
+    offers.map((o) =>
+      computeDeputationCharges({
+        wagePerDayPaise: o.wagePerDayPaise,
+        days: daysBetween(o.startDate, o.endDate),
+        housingProvided: o.housingProvided,
+      }),
+    ),
+  );
+  const openOffer = [...offers].reverse().find((o) => o.status === "PROPOSED") ?? null;
+  const negotiable = (state === "NEGOTIATING" || state === "REQUESTED") && (actor === "HOME_HOTEL" || actor === "DEMAND_HOTEL");
+  const { stateOf } = await loadSeasonContext();
+  const fair = suggestFairWage({
+    baseWagePaise: dep.worker.expectedWagePaise || dep.wagePerDayPaise,
+    demandSeason: stateOf(dep.demandHotel.regionId),
+  });
 
   return (
     <>
@@ -100,6 +122,89 @@ export default async function DeputationDetail({ params }: { params: Promise<{ i
               )}
             </div>
           </Card>
+
+          {offers.length > 0 && (
+            <Card>
+              <CardHeader
+                title="Negotiation"
+                subtitle={state === "NEGOTIATING" ? "Offer & counter-offer on wage and terms" : "Agreed terms"}
+              />
+              <div className="space-y-4 p-5">
+                {negotiable && (
+                  <p className="rounded-md bg-brand-50 px-3 py-2 text-xs text-brand-700">
+                    Suggested fair wage <span className="font-semibold">{formatINR(fair.suggestedPaise)}/day</span>{" "}
+                    (band {formatINR(fair.lowPaise)}–{formatINR(fair.highPaise)}) · {fair.reasons.join(" · ")}
+                  </p>
+                )}
+                <ol className="space-y-2">
+                  {offers.map((o, i) => (
+                    <li key={o.id} className="rounded-lg border border-slate-200 p-3">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium text-slate-800">{offerPartyLabel(o.byParty)}</span>
+                        <span className="text-slate-500">{formatINR(o.wagePerDayPaise)}/day</span>
+                        <OfferStatusBadge status={o.status} />
+                        <span className="ml-auto text-xs text-slate-400">{formatDate(o.createdAt)}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatDate(o.startDate)} – {formatDate(o.endDate)} · housing {o.housingProvided ? "provided" : "no"} · borrower pays{" "}
+                        {formatINR(previews[i].totals.borrowerPaysPaise)} · worker gets {formatINR(previews[i].totals.workerGetsPaise)}
+                      </p>
+                      {o.note && <p className="mt-1 text-xs text-slate-400">“{o.note}”</p>}
+                      {negotiable && openOffer?.id === o.id && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {o.byParty === actor ? (
+                            <form action={withdrawOffer}>
+                              <input type="hidden" name="id" value={dep.id} />
+                              <input type="hidden" name="offerId" value={o.id} />
+                              <SubmitButton size="sm" variant="ghost" pendingText="…">Withdraw</SubmitButton>
+                            </form>
+                          ) : (
+                            <>
+                              <form action={acceptOffer}>
+                                <input type="hidden" name="id" value={dep.id} />
+                                <input type="hidden" name="offerId" value={o.id} />
+                                <SubmitButton size="sm" pendingText="…">Accept these terms</SubmitButton>
+                              </form>
+                              <form action={rejectOffer}>
+                                <input type="hidden" name="id" value={dep.id} />
+                                <input type="hidden" name="offerId" value={o.id} />
+                                <SubmitButton size="sm" variant="secondary" pendingText="…">Reject</SubmitButton>
+                              </form>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+                {negotiable && (
+                  <form action={makeCounterOffer} className="space-y-3 rounded-lg border border-dashed border-slate-300 p-3">
+                    <p className="text-sm font-medium text-slate-700">Make a counter-offer</p>
+                    <input type="hidden" name="id" value={dep.id} />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="text-sm text-slate-600">
+                        ₹/day
+                        <Input name="wageRupees" type="number" min={0} defaultValue={Math.round((openOffer?.wagePerDayPaise ?? dep.wagePerDayPaise) / 100)} />
+                      </label>
+                      <label className="flex items-end gap-2 text-sm text-slate-600">
+                        <input type="checkbox" name="housingProvided" defaultChecked={dep.housingProvided} /> Housing provided
+                      </label>
+                      <label className="text-sm text-slate-600">
+                        Start
+                        <Input name="startDate" type="date" defaultValue={dep.startDate.toISOString().slice(0, 10)} />
+                      </label>
+                      <label className="text-sm text-slate-600">
+                        End
+                        <Input name="endDate" type="date" defaultValue={dep.endDate.toISOString().slice(0, 10)} />
+                      </label>
+                    </div>
+                    <Input name="note" placeholder="Optional note" />
+                    <SubmitButton size="sm" variant="secondary" pendingText="Sending…">Send counter-offer</SubmitButton>
+                  </form>
+                )}
+              </div>
+            </Card>
+          )}
 
           {canRate && (
             <Card>
@@ -193,6 +298,15 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function actorLabel(a: Actor): string {
   return a === "HOME_HOTEL" ? "home hotel" : a === "DEMAND_HOTEL" ? "host hotel" : a === "WORKER" ? "worker" : "platform";
+}
+
+function offerPartyLabel(p: string): string {
+  return p === "HOME_HOTEL" ? "Home hotel" : p === "DEMAND_HOTEL" ? "Host hotel" : "Worker";
+}
+
+function OfferStatusBadge({ status }: { status: string }) {
+  const tone = status === "ACCEPTED" ? "green" : status === "PROPOSED" ? "amber" : status === "REJECTED" || status === "WITHDRAWN" ? "red" : "slate";
+  return <Badge tone={tone as "green" | "amber" | "red" | "slate"}>{status.toLowerCase()}</Badge>;
 }
 
 function DimensionRatingForm({

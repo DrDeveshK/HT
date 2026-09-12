@@ -26,6 +26,7 @@ export type DeclarationType = (typeof DECLARATION_TYPES)[number];
 
 export const DEPUTATION_STATES = [
   "REQUESTED",
+  "NEGOTIATING",
   "ACCEPTED",
   "AGREED",
   "IN_TRANSIT",
@@ -35,6 +36,13 @@ export const DEPUTATION_STATES = [
   "CANCELLED",
 ] as const;
 export type DeputationState = (typeof DEPUTATION_STATES)[number];
+
+// ---- Offers / negotiation (M4) ----
+export const OFFER_STATUSES = ["PROPOSED", "COUNTERED", "ACCEPTED", "REJECTED", "WITHDRAWN"] as const;
+export type OfferStatus = (typeof OFFER_STATUSES)[number];
+
+export const OFFER_PARTIES = ["DEMAND_HOTEL", "HOME_HOTEL", "WORKER"] as const;
+export type OfferParty = (typeof OFFER_PARTIES)[number];
 
 export const SUBSCRIPTION_PLANS = ["FREE", "STARTER", "GROWTH", "ENTERPRISE"] as const;
 export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
