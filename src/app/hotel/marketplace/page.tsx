@@ -4,16 +4,7 @@ import { loadSeasonContext } from "@/lib/seasonal-data";
 import { rankMatches, type MatchWorker } from "@/core/matching";
 import { requestDeputation } from "@/actions/deputations";
 import { SubmitButton } from "@/components/SubmitButton";
-import {
-  PageHeader,
-  Card,
-  CardHeader,
-  SeasonPill,
-  ScorePill,
-  Badge,
-  Input,
-  EmptyState,
-} from "@/components/ui";
+import { PageHeader, Card, SeasonPill, ScorePill, Badge, Input, EmptyState } from "@/components/ui";
 import { formatINR, formatDate } from "@/lib/constants";
 
 export default async function Marketplace() {
@@ -74,19 +65,23 @@ export default async function Marketplace() {
       {cards.length === 0 ? (
         <EmptyState title="No surplus staff posted yet" hint="Check back as off-season regions list their teams." />
       ) : (
-        cards.map(({ decl, homeState, ranked, byId }) => (
-          <Card key={decl.id} className="mb-4">
-            <CardHeader
-              title={`${decl.role.name} · ${decl.hotel.name}`}
-              subtitle={`${decl.hotel.city} · ${decl.hotel.region.name}`}
-              action={
-                <div className="flex items-center gap-2">
-                  <SeasonPill state={homeState} />
-                  <Badge tone="slate">{decl.headcount} available</Badge>
+        cards.map(({ decl, homeState, ranked, byId }, idx) => (
+          <details key={decl.id} open={idx === 0} className="group mb-4 rounded-xl border border-slate-200 bg-white shadow-card">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden">
+              <div className="flex items-center gap-3">
+                <span className="text-slate-400 transition-transform group-open:rotate-90">▸</span>
+                <div>
+                  <p className="font-semibold text-slate-900">{decl.role.name} · {decl.hotel.name}</p>
+                  <p className="text-sm text-slate-500">{decl.hotel.city} · {decl.hotel.region.state}</p>
                 </div>
-              }
-            />
-            <div className="p-5">
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <SeasonPill state={homeState} />
+                <Badge tone="slate">{decl.headcount} available</Badge>
+                {ranked[0] && <ScorePill score={ranked[0].score} />}
+              </div>
+            </summary>
+            <div className="border-t border-slate-100 p-5">
               {decl.note && <p className="mb-2 text-sm text-slate-500">{decl.note}</p>}
               <p className="mb-3 text-xs text-slate-400">
                 Window {formatDate(decl.startDate)} – {formatDate(decl.endDate)} · Expected{" "}
@@ -123,7 +118,7 @@ export default async function Marketplace() {
                 </div>
               )}
             </div>
-          </Card>
+          </details>
         ))
       )}
 

@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadSeasonContext } from "@/lib/seasonal-data";
 import { PageHeader, Card, CardHeader, Stat, StateBadge, LinkButton } from "@/components/ui";
+import { SeasonMixBar } from "@/components/NationalSeasonMap";
 import { formatINR, PLAN_PRICING, type SubscriptionPlan } from "@/lib/constants";
 
 export default async function AdminOverview() {
@@ -66,6 +67,10 @@ export default async function AdminOverview() {
             subtitle={`${views.length} hotspots across India`}
             action={<LinkButton href="/admin/seasons" variant="secondary" size="sm">Full calendar</LinkButton>}
           />
+          <div className="flex items-center gap-3 px-5 pt-5">
+            <SeasonMixBar peak={peak} shoulder={shoulder} off={off} />
+            <span className="text-xs text-slate-400">live mix</span>
+          </div>
           <div className="grid grid-cols-3 gap-3 p-5">
             <Stat label="Peak now" value={peak} />
             <Stat label="Shoulder" value={shoulder} />
